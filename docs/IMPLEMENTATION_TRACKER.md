@@ -57,9 +57,9 @@ passthrough runner later behind the same inference interface.
   include `output_gcs_uri`.
 - [x] Add Docker runtime packages for audio probing, especially `ffmpeg`
   / `ffprobe`.
-- [ ] Add deployment docs with required environment variables and Cloud Run
+- [x] Add deployment docs with required environment variables and Cloud Run
   settings.
-- [ ] Add a GCP smoke checklist or script guarded by explicit environment
+- [x] Add a GCP smoke checklist or script guarded by explicit environment
   variables.
 
 ## First GCP Smoke Test
