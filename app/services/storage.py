@@ -1,7 +1,10 @@
 from pathlib import Path
 from typing import Protocol
 
+from google.api_core import exceptions as google_exceptions
 from google.cloud import storage
+
+from app.core.errors import RetryableDependencyError
 
 
 class StorageService(Protocol):
@@ -33,13 +36,19 @@ class GcsStorageService:
 
     def download(self, gcs_uri: str, destination: Path) -> None:
         bucket_name, object_name = _parse_gcs_uri(gcs_uri)
-        self._client.bucket(bucket_name).blob(object_name).download_to_filename(destination)
+        try:
+            self._client.bucket(bucket_name).blob(object_name).download_to_filename(destination)
+        except _RETRYABLE_GOOGLE_EXCEPTIONS as exc:
+            raise RetryableDependencyError("storage_unavailable", "Storage is unavailable.") from exc
 
     def upload(self, source: Path, gcs_uri: str, content_type: str, metadata: dict[str, str]) -> None:
         bucket_name, object_name = _parse_gcs_uri(gcs_uri)
         blob = self._client.bucket(bucket_name).blob(object_name)
         blob.metadata = metadata
-        blob.upload_from_filename(source, content_type=content_type)
+        try:
+            blob.upload_from_filename(source, content_type=content_type)
+        except _RETRYABLE_GOOGLE_EXCEPTIONS as exc:
+            raise RetryableDependencyError("storage_unavailable", "Storage is unavailable.") from exc
 
 
 def _parse_gcs_uri(gcs_uri: str) -> tuple[str, str]:
@@ -50,3 +59,13 @@ def _parse_gcs_uri(gcs_uri: str) -> tuple[str, str]:
     if not bucket_name or not separator or not object_name:
         raise ValueError("GCS URI must include bucket and object path")
     return bucket_name, object_name
+
+
+_RETRYABLE_GOOGLE_EXCEPTIONS = (
+    google_exceptions.Aborted,
+    google_exceptions.DeadlineExceeded,
+    google_exceptions.InternalServerError,
+    google_exceptions.ResourceExhausted,
+    google_exceptions.ServiceUnavailable,
+    google_exceptions.TooManyRequests,
+)

@@ -11,6 +11,17 @@ class PermanentInferenceError(Exception):
         super().__init__(message)
 
 
+class RetryableDependencyError(Exception):
+    def __init__(
+        self,
+        code: str = "dependency_unavailable",
+        message: str = "A dependency is temporarily unavailable.",
+    ) -> None:
+        self.code = code
+        self.message = message
+        super().__init__(message)
+
+
 def _request_id(request: Request) -> str:
     return getattr(request.state, "request_id", "")
 
@@ -38,6 +49,15 @@ def register_error_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content=error_payload("validation_error", "Invalid request.", _request_id(request)),
+        )
+
+    @app.exception_handler(RetryableDependencyError)
+    async def retryable_dependency_exception_handler(
+        request: Request, exc: RetryableDependencyError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content=error_payload(exc.code, exc.message, _request_id(request)),
         )
 
     @app.exception_handler(Exception)

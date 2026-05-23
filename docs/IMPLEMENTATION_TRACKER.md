@@ -48,14 +48,14 @@ passthrough runner later behind the same inference interface.
 
 ## Remaining Before First GCP Smoke
 
-- [ ] Add Firestore/GCS dependency error mapping so transient failures return
+- [x] Add Firestore/GCS dependency error mapping so transient failures return
   retryable `503` responses instead of generic `500`.
 - [ ] Confirm Firestore field names match the public API job/quota documents.
 - [ ] Confirm quota field names and semantics with the public API reservation
   implementation.
 - [ ] Add output GCS URI fallback policy if existing queued jobs do not already
   include `output_gcs_uri`.
-- [ ] Add Docker runtime packages for audio probing, especially `ffmpeg`
+- [x] Add Docker runtime packages for audio probing, especially `ffmpeg`
   / `ffprobe`.
 - [ ] Add deployment docs with required environment variables and Cloud Run
   settings.

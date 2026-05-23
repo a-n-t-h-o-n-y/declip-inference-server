@@ -1,8 +1,10 @@
 from math import ceil
 from typing import Protocol
 
+from google.api_core import exceptions as google_exceptions
 from google.cloud import firestore
 
+from app.core.errors import RetryableDependencyError
 from app.models.domain import JobRecord
 
 
@@ -43,17 +45,33 @@ class FirestoreQuotaService:
 
     def consume_reserved_seconds(self, job: JobRecord) -> int:
         seconds = billable_seconds(job)
-        self._collection.document(job.user_id).update(
-            {
-                "reserved_seconds": firestore.Increment(-seconds),
-                "used_seconds": firestore.Increment(seconds),
-            }
-        )
+        try:
+            self._collection.document(job.user_id).update(
+                {
+                    "reserved_seconds": firestore.Increment(-seconds),
+                    "used_seconds": firestore.Increment(seconds),
+                }
+            )
+        except _RETRYABLE_GOOGLE_EXCEPTIONS as exc:
+            raise RetryableDependencyError("database_unavailable", "Database is unavailable.") from exc
         return seconds
 
     def release_reserved_seconds(self, job: JobRecord) -> int:
         seconds = billable_seconds(job)
-        self._collection.document(job.user_id).update(
-            {"reserved_seconds": firestore.Increment(-seconds)}
-        )
+        try:
+            self._collection.document(job.user_id).update(
+                {"reserved_seconds": firestore.Increment(-seconds)}
+            )
+        except _RETRYABLE_GOOGLE_EXCEPTIONS as exc:
+            raise RetryableDependencyError("database_unavailable", "Database is unavailable.") from exc
         return seconds
+
+
+_RETRYABLE_GOOGLE_EXCEPTIONS = (
+    google_exceptions.Aborted,
+    google_exceptions.DeadlineExceeded,
+    google_exceptions.InternalServerError,
+    google_exceptions.ResourceExhausted,
+    google_exceptions.ServiceUnavailable,
+    google_exceptions.TooManyRequests,
+)

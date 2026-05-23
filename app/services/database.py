@@ -2,8 +2,10 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Protocol
 
+from google.api_core import exceptions as google_exceptions
 from google.cloud import firestore
 
+from app.core.errors import RetryableDependencyError
 from app.models.domain import JobRecord
 
 
@@ -74,7 +76,10 @@ class FirestoreJobRepository:
         self._collection = self._client.collection("jobs")
 
     def get_job(self, job_id: str) -> JobRecord:
-        snapshot = self._collection.document(job_id).get()
+        try:
+            snapshot = self._collection.document(job_id).get()
+        except _RETRYABLE_GOOGLE_EXCEPTIONS as exc:
+            raise RetryableDependencyError("database_unavailable", "Database is unavailable.") from exc
         if not snapshot.exists:
             raise JobNotFoundError(job_id)
         return _job_from_snapshot(job_id, snapshot.to_dict() or {})
@@ -85,47 +90,59 @@ class FirestoreJobRepository:
 
         @firestore.transactional
         def update_in_transaction(transaction: firestore.Transaction) -> JobRecord:
-            snapshot = doc_ref.get(transaction=transaction)
+            try:
+                snapshot = doc_ref.get(transaction=transaction)
+            except _RETRYABLE_GOOGLE_EXCEPTIONS as exc:
+                raise RetryableDependencyError("database_unavailable", "Database is unavailable.") from exc
             if not snapshot.exists:
                 raise JobNotFoundError(job_id)
             job = _job_from_snapshot(job_id, snapshot.to_dict() or {})
             if job.status != "queued":
                 raise JobStateConflictError(job_id)
             now = datetime.now(timezone.utc)
-            transaction.update(
-                doc_ref,
-                {
-                    "status": "processing",
-                    "started_at": job.started_at or now,
-                    "updated_at": now,
-                },
-            )
+            try:
+                transaction.update(
+                    doc_ref,
+                    {
+                        "status": "processing",
+                        "started_at": job.started_at or now,
+                        "updated_at": now,
+                    },
+                )
+            except _RETRYABLE_GOOGLE_EXCEPTIONS as exc:
+                raise RetryableDependencyError("database_unavailable", "Database is unavailable.") from exc
             job.status = "processing"
             job.started_at = job.started_at or now
             job.updated_at = now
             return job
 
-        return update_in_transaction(transaction)
+        try:
+            return update_in_transaction(transaction)
+        except _RETRYABLE_GOOGLE_EXCEPTIONS as exc:
+            raise RetryableDependencyError("database_unavailable", "Database is unavailable.") from exc
 
     def mark_succeeded(self, job: JobRecord) -> JobRecord:
         now = datetime.now(timezone.utc)
-        self._collection.document(job.id).update(
-            {
-                "status": "succeeded",
-                "model_name": job.model_name,
-                "model_version": job.model_version,
-                "model_sample_rate_hz": job.model_sample_rate_hz,
-                "output_gcs_uri": job.output_gcs_uri,
-                "output_format": job.output_format,
-                "output_content_type": job.output_content_type,
-                "output_size_bytes": job.output_size_bytes,
-                "output_duration_seconds": job.output_duration_seconds,
-                "error_code": None,
-                "error_message": None,
-                "completed_at": now,
-                "updated_at": now,
-            }
-        )
+        try:
+            self._collection.document(job.id).update(
+                {
+                    "status": "succeeded",
+                    "model_name": job.model_name,
+                    "model_version": job.model_version,
+                    "model_sample_rate_hz": job.model_sample_rate_hz,
+                    "output_gcs_uri": job.output_gcs_uri,
+                    "output_format": job.output_format,
+                    "output_content_type": job.output_content_type,
+                    "output_size_bytes": job.output_size_bytes,
+                    "output_duration_seconds": job.output_duration_seconds,
+                    "error_code": None,
+                    "error_message": None,
+                    "completed_at": now,
+                    "updated_at": now,
+                }
+            )
+        except _RETRYABLE_GOOGLE_EXCEPTIONS as exc:
+            raise RetryableDependencyError("database_unavailable", "Database is unavailable.") from exc
         job.status = "succeeded"
         job.completed_at = now
         job.updated_at = now
@@ -133,15 +150,18 @@ class FirestoreJobRepository:
 
     def mark_failed(self, job: JobRecord, code: str, message: str) -> JobRecord:
         now = datetime.now(timezone.utc)
-        self._collection.document(job.id).update(
-            {
-                "status": "failed",
-                "error_code": code,
-                "error_message": message,
-                "completed_at": now,
-                "updated_at": now,
-            }
-        )
+        try:
+            self._collection.document(job.id).update(
+                {
+                    "status": "failed",
+                    "error_code": code,
+                    "error_message": message,
+                    "completed_at": now,
+                    "updated_at": now,
+                }
+            )
+        except _RETRYABLE_GOOGLE_EXCEPTIONS as exc:
+            raise RetryableDependencyError("database_unavailable", "Database is unavailable.") from exc
         job.status = "failed"
         job.error_code = code
         job.error_message = message
@@ -176,3 +196,13 @@ def _job_from_snapshot(job_id: str, data: dict) -> JobRecord:
         completed_at=data.get("completed_at"),
         updated_at=data.get("updated_at"),
     )
+
+
+_RETRYABLE_GOOGLE_EXCEPTIONS = (
+    google_exceptions.Aborted,
+    google_exceptions.DeadlineExceeded,
+    google_exceptions.InternalServerError,
+    google_exceptions.ResourceExhausted,
+    google_exceptions.ServiceUnavailable,
+    google_exceptions.TooManyRequests,
+)
