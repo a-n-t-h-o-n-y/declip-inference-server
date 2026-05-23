@@ -24,12 +24,15 @@ class JobRecord:
     input_duration_seconds: float
     input_sample_rate_hz: int
     input_channels: int
+    input_content_type: str | None = None
+    input_size_bytes: int | None = None
     output_gcs_uri: str | None = None
     model_name: str | None = None
     model_version: str | None = None
     model_sample_rate_hz: int | None = None
     output_format: str | None = None
     output_content_type: str | None = None
+    output_size_bytes: int | None = None
     output_duration_seconds: float | None = None
     error_code: str | None = None
     error_message: str | None = None

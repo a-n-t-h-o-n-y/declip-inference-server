@@ -6,9 +6,11 @@ from app.api.routes.tasks import router as tasks_router
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.logging import RequestContextMiddleware, configure_logging
-from app.services.database import InMemoryJobRepository
+from app.services.database import FirestoreJobRepository, InMemoryJobRepository
+from app.services.inference import PassthroughInferenceRunner
 from app.services.model_catalog import ModelCatalog
-from app.services.quotas import InMemoryQuotaService
+from app.services.quotas import FirestoreQuotaService, InMemoryQuotaService
+from app.services.storage import GcsStorageService, InMemoryStorageService
 from app.services.task_auth import FakeServiceTokenVerifier, GoogleServiceTokenVerifier
 from app.services.task_processing import FakeInferenceRunner, TaskProcessor
 
@@ -28,13 +30,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.model_catalog = catalog
     app.state.token_verifier = token_verifier
-    app.state.job_repository = InMemoryJobRepository()
-    app.state.quota_service = InMemoryQuotaService()
+    if settings.app_runtime_mode == "local":
+        app.state.job_repository = InMemoryJobRepository()
+        app.state.quota_service = InMemoryQuotaService()
+        app.state.storage_service = InMemoryStorageService()
+        inference = FakeInferenceRunner()
+    else:
+        app.state.job_repository = FirestoreJobRepository(
+            project_id=settings.gcp_project_id,
+            database=settings.firestore_database,
+        )
+        app.state.quota_service = FirestoreQuotaService(
+            project_id=settings.gcp_project_id,
+            database=settings.firestore_database,
+        )
+        app.state.storage_service = GcsStorageService(project_id=settings.gcp_project_id)
+        inference = PassthroughInferenceRunner(app.state.storage_service)
+
     app.state.task_processor = TaskProcessor(
         jobs=app.state.job_repository,
         quotas=app.state.quota_service,
         catalog=catalog,
-        inference=FakeInferenceRunner(),
+        inference=inference,
     )
 
     app.add_middleware(RequestContextMiddleware)

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
         default=Path("/tmp/declip-models"), alias="MODEL_ARTIFACT_CACHE_DIR"
     )
     inference_device: str = Field(default="cuda", alias="INFERENCE_DEVICE")
+    inference_backend: str = Field(default="passthrough", alias="INFERENCE_BACKEND")
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
@@ -36,6 +37,13 @@ class Settings(BaseSettings):
     def validate_runtime_mode(cls, value: str) -> str:
         if value not in {"local", "cloud"}:
             raise ValueError("APP_RUNTIME_MODE must be local or cloud")
+        return value
+
+    @field_validator("inference_backend")
+    @classmethod
+    def validate_inference_backend(cls, value: str) -> str:
+        if value not in {"passthrough"}:
+            raise ValueError("INFERENCE_BACKEND must be passthrough")
         return value
 
     @field_validator("allowed_internal_caller_service_accounts", mode="before")

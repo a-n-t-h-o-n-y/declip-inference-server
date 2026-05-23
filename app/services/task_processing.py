@@ -24,6 +24,7 @@ class FakeInferenceRunner:
             output_format="wav",
             output_content_type="audio/wav",
             output_duration_seconds=job.input_duration_seconds,
+            output_size_bytes=job.input_size_bytes,
         )
 
 
@@ -92,6 +93,7 @@ class TaskProcessor:
         job.output_gcs_uri = output.output_gcs_uri
         job.output_format = output.output_format
         job.output_content_type = output.output_content_type
+        job.output_size_bytes = output.output_size_bytes
         job.output_duration_seconds = output.output_duration_seconds
         job.model_name = model.model_name
         job.model_version = model.model_version
