@@ -1,0 +1,20 @@
+catalog_version: 0.1.0
+model_families:
+  - family: ddd-v1
+    enabled: true
+    display_name: DDD v1
+    description: General declipping model family.
+    default_output_format: wav
+    models:
+      - sample_rate_hz: 44100
+        model_name: ddd-v1-44k
+        model_version: 1.0.0
+        artifact_uri: gs://declip-models-dev/ddd-v1/44100/model.pt
+        runtime: pytorch
+        enabled: true
+      - sample_rate_hz: 48000
+        model_name: ddd-v1-48k
+        model_version: 1.0.0
+        artifact_uri: gs://declip-models-dev/ddd-v1/48000/model.pt
+        runtime: pytorch
+        enabled: true
