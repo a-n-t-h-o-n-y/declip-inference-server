@@ -54,7 +54,7 @@ async def require_internal_service_token(
             detail={"code": "invalid_service_token", "message": "Unauthorized."},
         ) from None
 
-    if verified.email not in settings.allowed_internal_caller_service_accounts:
+    if verified.email not in settings.allowed_internal_caller_service_account_emails:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "forbidden_service_account", "message": "Forbidden."},

@@ -27,6 +27,10 @@ Required IAM:
 - Public API runtime service account has `roles/run.invoker` on this Cloud Run
   service.
 
+These Cloud Run invoker IAM bindings are durable infrastructure policy and
+should be managed by Terraform in the shared backend infrastructure repo. The
+deploy script does not grant them.
+
 ## Required Environment
 
 Set these on the inference Cloud Run service:
@@ -42,7 +46,7 @@ FIRESTORE_DATABASE=(default)
 GCS_BUCKET_NAME=<audio-bucket-name>
 CLOUD_TASKS_SERVICE_ACCOUNT=<cloud-tasks-service-account-email>
 INFERENCE_SERVICE_AUDIENCE=<cloud-run-service-url>
-ALLOWED_INTERNAL_CALLER_SERVICE_ACCOUNTS=<public-api-runtime-service-account-email>
+ALLOWED_INTERNAL_CALLER_SERVICE_ACCOUNTS=["<public-api-runtime-service-account-email>"]
 MODEL_CONFIG_PATH=config/models.yaml
 APP_CONFIG_PATH=config/app.yaml
 MODEL_ARTIFACT_CACHE_DIR=/tmp/declip-models
@@ -60,6 +64,31 @@ Cloud Run service URL.
 
 ## Build And Deploy
 
+For dev, prefer the deploy script:
+
+```bash
+PROJECT_ID="declip-dev" \
+REGION="us-central1" \
+REPOSITORY="declip-dev" \
+SERVICE="declip-inference-dev" \
+IMAGE_TAG="$(git rev-parse --short HEAD)" \
+GCS_BUCKET_NAME="declip-audio-dev" \
+CLOUD_TASKS_SERVICE_ACCOUNT="declip-tasks-dev@declip-dev.iam.gserviceaccount.com" \
+PUBLIC_API_SERVICE_ACCOUNT="declip-api-dev@declip-dev.iam.gserviceaccount.com" \
+INFERENCE_SERVICE_ACCOUNT="declip-inference-dev@declip-dev.iam.gserviceaccount.com" \
+scripts/deploy-cloud-run-dev.sh
+```
+
+The script builds and pushes the image, deploys private Cloud Run, and prints
+the smoke-test command. It sets all environment variables in the deploy call.
+If `INFERENCE_SERVICE_AUDIENCE` is not supplied, it reuses the existing Cloud
+Run service URL. For a first deploy where no service URL exists yet, set
+`INFERENCE_SERVICE_AUDIENCE` explicitly. Cloud Run invoker IAM should already
+be managed by Terraform.
+
+The manual commands below are equivalent and useful when debugging deployment
+settings.
+
 Example variables:
 
 ```bash
@@ -72,6 +101,7 @@ export INFERENCE_SERVICE_ACCOUNT="declip-inference@${PROJECT_ID}.iam.gserviceacc
 export CLOUD_TASKS_SERVICE_ACCOUNT="declip-tasks@${PROJECT_ID}.iam.gserviceaccount.com"
 export PUBLIC_API_SERVICE_ACCOUNT="declip-api@${PROJECT_ID}.iam.gserviceaccount.com"
 export AUDIO_BUCKET_NAME="declip-audio-dev"
+export INFERENCE_SERVICE_AUDIENCE="<caller-oidc-audience>"
 ```
 
 Build and push:
@@ -95,10 +125,10 @@ gcloud run deploy "${SERVICE_NAME}" \
   --memory=4Gi \
   --timeout=3600 \
   --concurrency=1 \
-  --set-env-vars="APP_ENV=dev,APP_RUNTIME_MODE=cloud,APP_NAME=declip-inference-server,APP_VERSION=0.1.0,LOG_LEVEL=INFO,GCP_PROJECT_ID=${PROJECT_ID},FIRESTORE_DATABASE=(default),GCS_BUCKET_NAME=${AUDIO_BUCKET_NAME},CLOUD_TASKS_SERVICE_ACCOUNT=${CLOUD_TASKS_SERVICE_ACCOUNT},INFERENCE_SERVICE_AUDIENCE=https://${SERVICE_NAME}-REPLACE.run.app,ALLOWED_INTERNAL_CALLER_SERVICE_ACCOUNTS=${PUBLIC_API_SERVICE_ACCOUNT},MODEL_CONFIG_PATH=config/models.yaml,APP_CONFIG_PATH=config/app.yaml,MODEL_ARTIFACT_CACHE_DIR=/tmp/declip-models,INFERENCE_DEVICE=cpu,INFERENCE_BACKEND=passthrough,MAX_DECODED_DURATION_SECONDS=1200"
+  --set-env-vars="APP_ENV=dev,APP_RUNTIME_MODE=cloud,APP_NAME=declip-inference-server,APP_VERSION=0.1.0,LOG_LEVEL=INFO,GCP_PROJECT_ID=${PROJECT_ID},FIRESTORE_DATABASE=(default),GCS_BUCKET_NAME=${AUDIO_BUCKET_NAME},CLOUD_TASKS_SERVICE_ACCOUNT=${CLOUD_TASKS_SERVICE_ACCOUNT},INFERENCE_SERVICE_AUDIENCE=${INFERENCE_SERVICE_AUDIENCE},ALLOWED_INTERNAL_CALLER_SERVICE_ACCOUNTS=[\"${PUBLIC_API_SERVICE_ACCOUNT}\"],MODEL_CONFIG_PATH=config/models.yaml,APP_CONFIG_PATH=config/app.yaml,MODEL_ARTIFACT_CACHE_DIR=/tmp/declip-models,INFERENCE_DEVICE=cpu,INFERENCE_BACKEND=passthrough,MAX_DECODED_DURATION_SECONDS=1200"
 ```
 
-After deploy, get the actual service URL:
+After deploy, get the actual service URL for callers and smoke tests:
 
 ```bash
 export INFERENCE_SERVICE_URL="$(
@@ -109,16 +139,8 @@ export INFERENCE_SERVICE_URL="$(
 )"
 ```
 
-Then update the audience to the exact service URL:
-
-```bash
-gcloud run services update "${SERVICE_NAME}" \
-  --project="${PROJECT_ID}" \
-  --region="${REGION}" \
-  --set-env-vars="INFERENCE_SERVICE_AUDIENCE=${INFERENCE_SERVICE_URL}"
-```
-
-Grant invoke permissions:
+If Terraform does not manage invoke permissions yet, the equivalent manual
+commands are:
 
 ```bash
 gcloud run services add-iam-policy-binding "${SERVICE_NAME}" \

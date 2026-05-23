@@ -1,4 +1,5 @@
 from functools import lru_cache
+import json
 from pathlib import Path
 
 from pydantic import Field, field_validator
@@ -19,8 +20,8 @@ class Settings(BaseSettings):
         default=None, alias="CLOUD_TASKS_SERVICE_ACCOUNT"
     )
     inference_service_audience: str | None = Field(default=None, alias="INFERENCE_SERVICE_AUDIENCE")
-    allowed_internal_caller_service_accounts: list[str] = Field(
-        default_factory=list, alias="ALLOWED_INTERNAL_CALLER_SERVICE_ACCOUNTS"
+    allowed_internal_caller_service_accounts: str = Field(
+        default="", alias="ALLOWED_INTERNAL_CALLER_SERVICE_ACCOUNTS"
     )
     model_config_path: Path = Field(default=Path("config/models.yaml"), alias="MODEL_CONFIG_PATH")
     app_config_path: Path = Field(default=Path("config/app.yaml"), alias="APP_CONFIG_PATH")
@@ -47,11 +48,25 @@ class Settings(BaseSettings):
             raise ValueError("INFERENCE_BACKEND must be passthrough")
         return value
 
+    @property
+    def allowed_internal_caller_service_account_emails(self) -> set[str]:
+        callers = self.allowed_internal_caller_service_accounts
+        if callers.strip().startswith("["):
+            parsed = json.loads(callers)
+            if isinstance(parsed, list):
+                return {str(item).strip() for item in parsed if str(item).strip()}
+
+        return {
+            item.strip()
+            for item in callers.split(",")
+            if item.strip()
+        }
+
     @field_validator("allowed_internal_caller_service_accounts", mode="before")
     @classmethod
-    def split_service_accounts(cls, value: object) -> object:
-        if isinstance(value, str):
-            return [item.strip() for item in value.split(",") if item.strip()]
+    def normalize_service_accounts(cls, value: object) -> object:
+        if isinstance(value, list):
+            return ",".join(str(item).strip() for item in value if str(item).strip())
         return value
 
 
