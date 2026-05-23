@@ -4,8 +4,9 @@ from fastapi import HTTPException, status
 
 from app.models.api import ProcessJobRequest
 from app.models.domain import JobRecord, TERMINAL_JOB_STATUSES
+from app.core.errors import PermanentInferenceError
 from app.services.database import JobNotFoundError, JobRepository, JobStateConflictError
-from app.services.inference import InferenceResult, InferenceRunner, PermanentInferenceError
+from app.services.inference import InferenceResult, InferenceRunner
 from app.services.model_catalog import ModelCatalog
 from app.services.quotas import QuotaService
 

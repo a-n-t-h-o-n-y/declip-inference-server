@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     )
     inference_device: str = Field(default="cuda", alias="INFERENCE_DEVICE")
     inference_backend: str = Field(default="passthrough", alias="INFERENCE_BACKEND")
+    max_decoded_duration_seconds: int = Field(default=1200, alias="MAX_DECODED_DURATION_SECONDS")
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 

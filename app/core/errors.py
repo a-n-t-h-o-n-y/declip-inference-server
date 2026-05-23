@@ -4,6 +4,13 @@ from fastapi.responses import JSONResponse
 from starlette import status
 
 
+class PermanentInferenceError(Exception):
+    def __init__(self, code: str, message: str) -> None:
+        self.code = code
+        self.message = message
+        super().__init__(message)
+
+
 def _request_id(request: Request) -> str:
     return getattr(request.state, "request_id", "")
 

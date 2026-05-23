@@ -6,6 +6,7 @@ from app.api.routes.tasks import router as tasks_router
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.logging import RequestContextMiddleware, configure_logging
+from app.services.audio import FfprobeAudioProbeService
 from app.services.database import FirestoreJobRepository, InMemoryJobRepository
 from app.services.inference import PassthroughInferenceRunner
 from app.services.model_catalog import ModelCatalog
@@ -45,7 +46,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             database=settings.firestore_database,
         )
         app.state.storage_service = GcsStorageService(project_id=settings.gcp_project_id)
-        inference = PassthroughInferenceRunner(app.state.storage_service)
+        app.state.audio_probe_service = FfprobeAudioProbeService()
+        inference = PassthroughInferenceRunner(
+            storage=app.state.storage_service,
+            audio_probe=app.state.audio_probe_service,
+            max_duration_seconds=settings.max_decoded_duration_seconds,
+        )
 
     app.state.task_processor = TaskProcessor(
         jobs=app.state.job_repository,
