@@ -1,0 +1,101 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.python-version
+.venv/
+venv/
+env/
+ENV/
+pip-wheel-metadata/
+build/
+dist/
+*.egg-info/
+.eggs/
+wheels/
+
+# Test and coverage output
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.mypy_cache/
+.pyre/
+.ruff_cache/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*service-account*.json
+*firebase-admin*.json
+application_default_credentials.json
+
+# IDEs and local tooling
+.idea/
+.vscode/
+*.swp
+*.swo
+*.orig
+.DS_Store
+Thumbs.db
+
+# Logs and runtime state
+*.log
+logs/
+tmp/
+temp/
+.cache/
+
+# Audio, model, and inference artifacts
+/uploads/
+/outputs/
+/artifacts/
+/checkpoints/
+/models/
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.m4a
+*.aac
+*.onnx
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# Google Cloud and deployment generated files
+.gcloud/
+firebase-debug.log
+firestore-debug.log
+storage-debug.log
+
+# Terraform local state and plans
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+*.tfvars
+!*.tfvars.example
+backend.hcl
+
+# Node tooling that may appear in docs or generated frontend contract tooling
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+tags
