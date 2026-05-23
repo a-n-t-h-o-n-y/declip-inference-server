@@ -50,10 +50,10 @@ passthrough runner later behind the same inference interface.
 
 - [x] Add Firestore/GCS dependency error mapping so transient failures return
   retryable `503` responses instead of generic `500`.
-- [ ] Confirm Firestore field names match the public API job/quota documents.
-- [ ] Confirm quota field names and semantics with the public API reservation
+- [x] Confirm Firestore field names match the public API job/quota documents.
+- [x] Confirm quota field names and semantics with the public API reservation
   implementation.
-- [ ] Add output GCS URI fallback policy if existing queued jobs do not already
+- [x] Add output GCS URI fallback policy if existing queued jobs do not already
   include `output_gcs_uri`.
 - [x] Add Docker runtime packages for audio probing, especially `ffmpeg`
   / `ffprobe`.

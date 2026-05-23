@@ -37,7 +37,7 @@ class PassthroughInferenceRunner:
         self._max_duration_seconds = max_duration_seconds
 
     def run(self, job: JobRecord, model: ModelSpec) -> InferenceResult:
-        output_uri = job.output_gcs_uri or f"gs://local-fake-output/{job.user_id}/{job.id}/output.wav"
+        output_uri = job.output_gcs_uri or output_uri_from_input(job.input_gcs_uri, job.id)
         content_type = job.input_content_type or "audio/wav"
 
         with TemporaryDirectory(prefix=f"declip-{job.id}-") as temp_dir:
@@ -80,3 +80,19 @@ def _format_from_content_type(content_type: str) -> str:
     if "/" in content_type:
         return content_type.rsplit("/", maxsplit=1)[-1]
     return "wav"
+
+
+def output_uri_from_input(input_gcs_uri: str, job_id: str) -> str:
+    input_marker = f"/jobs/{job_id}/input/"
+    if input_marker in input_gcs_uri:
+        prefix, _, filename = input_gcs_uri.partition(input_marker)
+        safe_filename = filename.rsplit("/", maxsplit=1)[-1] or f"{job_id}.wav"
+        return f"{prefix}/jobs/{job_id}/output/{safe_filename}"
+
+    if not input_gcs_uri.startswith("gs://"):
+        raise PermanentInferenceError("invalid_storage_uri", "Input storage URI is invalid.")
+    bucket_and_path = input_gcs_uri.removeprefix("gs://")
+    bucket, separator, _object_name = bucket_and_path.partition("/")
+    if not bucket or not separator:
+        raise PermanentInferenceError("invalid_storage_uri", "Input storage URI is invalid.")
+    return f"gs://{bucket}/users/unknown/jobs/{job_id}/output/{job_id}.wav"

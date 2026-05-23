@@ -48,8 +48,8 @@ class FirestoreQuotaService:
         try:
             self._collection.document(job.user_id).update(
                 {
-                    "reserved_seconds": firestore.Increment(-seconds),
-                    "used_seconds": firestore.Increment(seconds),
+                    "audio_seconds_reserved": firestore.Increment(-seconds),
+                    "audio_seconds_used": firestore.Increment(seconds),
                 }
             )
         except _RETRYABLE_GOOGLE_EXCEPTIONS as exc:
@@ -60,7 +60,7 @@ class FirestoreQuotaService:
         seconds = billable_seconds(job)
         try:
             self._collection.document(job.user_id).update(
-                {"reserved_seconds": firestore.Increment(-seconds)}
+                {"audio_seconds_reserved": firestore.Increment(-seconds)}
             )
         except _RETRYABLE_GOOGLE_EXCEPTIONS as exc:
             raise RetryableDependencyError("database_unavailable", "Database is unavailable.") from exc
