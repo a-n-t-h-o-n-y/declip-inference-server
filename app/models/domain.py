@@ -44,6 +44,11 @@ class JobRecord:
     processing_sample_rate_hz: int | None = None
     error_code: str | None = None
     error_message: str | None = None
+    initial_dispatch_status: str | None = None
+    initial_dispatch_task_name: str | None = None
+    initial_dispatch_claimed_at: datetime | None = None
+    initial_dispatch_enqueued_at: datetime | None = None
+    created_at: datetime | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
     updated_at: datetime | None = None

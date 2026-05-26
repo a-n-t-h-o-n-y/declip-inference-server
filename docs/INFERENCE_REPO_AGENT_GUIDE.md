@@ -14,6 +14,8 @@ Build a private FastAPI Cloud Run GPU service that owns:
   canonical PCM audio.
 - Writing generated canonical PCM output.
 - Enqueueing CPU final output encoding.
+- Dispatching the user's next waiting conversion job after a permanent
+  inference failure releases capacity.
 
 It must not own:
 
@@ -33,6 +35,13 @@ GPU inference service -> conversion queue -> CPU conversion service finalization
 Input conversion has already stored `model_input_gcs_uri` as canonical
 `pcm_f32le` WAV at `job.model_sample_rate_hz`. Inference writes newly generated
 canonical PCM to `model_output_gcs_uri` and never creates the final user output.
+
+Per-user dispatch capacity is stored in shared Firestore document
+`dispatch_policies/default`, field `max_parallel_jobs_per_user`. Terraform
+provisions the global policy with launch default `1`. If this service
+dispatches waiting work after permanent failure, it must read the policy in
+the same claim transaction and fail retryably if it is missing or invalid; do
+not use a service-local fallback.
 
 ## Repository Shape
 
@@ -262,6 +271,11 @@ error_message
 updated_at
 ```
 
+Never replace the shared job document with an inference-local model. Use
+partial or transactional field updates only, preserving required public API
+fields such as `created_at`, original input metadata, and output planning
+fields owned by the public API/conversion service.
+
 Public statuses remain:
 
 ```txt
@@ -273,9 +287,24 @@ conversion service changes `queued` to `processing` after claiming input
 conversion and changes `processing` to `succeeded` during finalization.
 
 On a permanent inference error, inference may transactionally mark the job
-`failed` and release the previously reserved quota exactly once. On transient
-storage, Firestore, model-fetch, or downstream enqueue failure, return a
-retryable failure.
+`failed` and release the previously reserved quota exactly once. After that
+terminal operation, it must dispatch the user's oldest
+`queued`/`initial_dispatch_status=waiting` job if per-user capacity is now
+available. Claim it as `pending`, enqueue its deterministic
+`POST /tasks/convert-input` task on the conversion queue using task ID
+`convert-input-` plus the first 32 lowercase hexadecimal characters of
+`sha256(job_id)`, and record `enqueued`; retries reuse the same task identity
+and treat an existing task as success. On transient storage, Firestore,
+model-fetch, or downstream enqueue failure, return a retryable failure.
+
+Permanent-failure dispatch must first resume any existing
+`queued`/`initial_dispatch_status=pending` claim for the user. It must perform
+that recovery even when a retry finds the original inference job already
+`failed`, because failure accounting may have committed before the next task
+was created. For a newly dispatched conversion task send `attempt=1`, generate
+a fresh opaque `request_id` for each Cloud Tasks create attempt, and propagate
+`trace_id` only when available. Task-name determinism, not `request_id`, is
+the idempotency mechanism.
 
 ## Downstream Finalization Contract
 

@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+import secrets
+from typing import Callable
 
 from fastapi import HTTPException, status
 
@@ -12,9 +14,10 @@ from app.models.domain import (
 from app.core.errors import PermanentInferenceError
 from app.services.database import JobNotFoundError, JobRepository, JobStateConflictError
 from app.services.inference import InferenceResult, InferenceRunner
+from app.services.initial_dispatch import InitialDispatchService
 from app.services.model_catalog import ModelCatalog
 from app.services.quotas import QuotaService
-from app.services.queue import FinalizationQueue
+from app.services.queue import ConversionQueue, FinalizationQueue
 
 
 @dataclass(frozen=True)
@@ -44,12 +47,20 @@ class TaskProcessor:
         catalog: ModelCatalog,
         inference: InferenceRunner,
         finalization_queue: FinalizationQueue,
+        initial_dispatch: InitialDispatchService,
+        conversion_queue: ConversionQueue,
+        request_id_factory: Callable[[], str] | None = None,
     ) -> None:
         self._jobs = jobs
         self._quotas = quotas
         self._catalog = catalog
         self._inference = inference
         self._finalization_queue = finalization_queue
+        self._initial_dispatch = initial_dispatch
+        self._conversion_queue = conversion_queue
+        self._request_id_factory = request_id_factory or (
+            lambda: f"req_{secrets.token_urlsafe(18)}"
+        )
 
     def process(self, payload: ProcessJobRequest) -> ProcessJobResult:
         try:
@@ -69,6 +80,7 @@ class TaskProcessor:
         if job.status in {"succeeded", "failed", "cancelled"}:
             if job.status == "failed":
                 self._quotas.release_reserved_seconds(job)
+                self._dispatch_next_input(job.user_id, payload.trace_id)
             return ProcessJobResult(
                 job_id=job.id, status=job.status, processing_stage=job.processing_stage
             )
@@ -118,6 +130,7 @@ class TaskProcessor:
                 message="Unsupported audio sample rate for the requested model.",
             )
             self._quotas.release_reserved_seconds(failed)
+            self._dispatch_next_input(failed.user_id, payload.trace_id)
             return ProcessJobResult(
                 job_id=failed.id,
                 status=failed.status,
@@ -126,6 +139,7 @@ class TaskProcessor:
         except PermanentInferenceError as exc:
             failed = self._jobs.mark_failed(job, code=exc.code, message=exc.message)
             self._quotas.release_reserved_seconds(failed)
+            self._dispatch_next_input(failed.user_id, payload.trace_id)
             return ProcessJobResult(
                 job_id=failed.id,
                 status=failed.status,
@@ -154,3 +168,17 @@ class TaskProcessor:
             status=awaiting_output.status,
             processing_stage=awaiting_output.processing_stage,
         )
+
+    def _dispatch_next_input(self, user_id: str, trace_id: str | None) -> None:
+        claim = self._initial_dispatch.claim_next_input_dispatch(user_id)
+        if claim is None:
+            return
+        payload = ProcessJobRequest(
+            job_id=claim.job.id,
+            user_id=claim.job.user_id,
+            attempt=1,
+            request_id=self._request_id_factory(),
+            trace_id=trace_id,
+        )
+        self._conversion_queue.enqueue_convert_input(payload, claim.task_id)
+        self._initial_dispatch.mark_initial_dispatch_enqueued(claim.job.id)

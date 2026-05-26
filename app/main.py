@@ -9,9 +9,17 @@ from app.core.logging import RequestContextMiddleware, configure_logging
 from app.services.audio import FfprobeAudioProbeService
 from app.services.database import FirestoreJobRepository, InMemoryJobRepository
 from app.services.inference import PassthroughInferenceRunner
+from app.services.initial_dispatch import (
+    FirestoreInitialDispatchService,
+    InMemoryInitialDispatchService,
+)
 from app.services.model_catalog import ModelCatalog
 from app.services.quotas import FirestoreQuotaService, InMemoryQuotaService
-from app.services.queue import CloudTasksFinalizationQueue, InMemoryFinalizationQueue
+from app.services.queue import (
+    CloudTasksFinalizationQueue,
+    InMemoryConversionQueue,
+    InMemoryFinalizationQueue,
+)
 from app.services.storage import GcsStorageService, InMemoryStorageService
 from app.services.task_auth import FakeServiceTokenVerifier, GoogleServiceTokenVerifier
 from app.services.task_processing import FakeInferenceRunner, TaskProcessor
@@ -37,6 +45,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.quota_service = InMemoryQuotaService()
         app.state.storage_service = InMemoryStorageService()
         app.state.finalization_queue = InMemoryFinalizationQueue()
+        app.state.conversion_queue = InMemoryConversionQueue()
+        app.state.initial_dispatch = InMemoryInitialDispatchService(app.state.job_repository)
         inference = FakeInferenceRunner()
     else:
         required_queue_settings = {
@@ -68,6 +78,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             service_account_email=settings.cloud_tasks_service_account,
             audience=settings.conversion_service_audience,
         )
+        app.state.conversion_queue = app.state.finalization_queue
+        app.state.initial_dispatch = FirestoreInitialDispatchService(
+            project_id=settings.gcp_project_id,
+            database=settings.firestore_database,
+        )
         inference = PassthroughInferenceRunner(
             storage=app.state.storage_service,
             audio_probe=app.state.audio_probe_service,
@@ -80,6 +95,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         catalog=catalog,
         inference=inference,
         finalization_queue=app.state.finalization_queue,
+        initial_dispatch=app.state.initial_dispatch,
+        conversion_queue=app.state.conversion_queue,
     )
 
     app.add_middleware(RequestContextMiddleware)

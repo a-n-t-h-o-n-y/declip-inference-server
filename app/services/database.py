@@ -43,6 +43,12 @@ class InMemoryJobRepository:
     def add(self, job: JobRecord) -> None:
         self._jobs[job.id] = deepcopy(job)
 
+    def replace(self, job: JobRecord) -> None:
+        self._jobs[job.id] = deepcopy(job)
+
+    def list_user_jobs(self, user_id: str) -> list[JobRecord]:
+        return [deepcopy(job) for job in self._jobs.values() if job.user_id == user_id]
+
     def get_job(self, job_id: str) -> JobRecord:
         try:
             return deepcopy(self._jobs[job_id])
@@ -220,6 +226,11 @@ def _job_from_snapshot(job_id: str, data: dict) -> JobRecord:
         processing_sample_rate_hz=data.get("processing_sample_rate_hz"),
         error_code=data.get("error_code"),
         error_message=data.get("error_message"),
+        initial_dispatch_status=data.get("initial_dispatch_status"),
+        initial_dispatch_task_name=data.get("initial_dispatch_task_name"),
+        initial_dispatch_claimed_at=data.get("initial_dispatch_claimed_at"),
+        initial_dispatch_enqueued_at=data.get("initial_dispatch_enqueued_at"),
+        created_at=data.get("created_at"),
         started_at=data.get("started_at"),
         completed_at=data.get("completed_at"),
         updated_at=data.get("updated_at"),
