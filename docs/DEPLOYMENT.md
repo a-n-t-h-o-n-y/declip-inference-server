@@ -73,22 +73,15 @@ Cloud Run service URL.
 For dev, prefer the deploy script:
 
 ```bash
-PROJECT_ID="declip-dev" \
-REGION="us-central1" \
-REPOSITORY="declip-dev" \
-SERVICE="declip-inference-dev" \
-IMAGE_TAG="$(git rev-parse --short HEAD)" \
-GCS_BUCKET_NAME="declip-audio-dev" \
-CLOUD_TASKS_CONVERSION_QUEUE="declip-conversion-dev" \
-CONVERSION_SERVICE_URL="<conversion-service-url>" \
-CLOUD_TASKS_SERVICE_ACCOUNT="declip-tasks-dev@declip-dev.iam.gserviceaccount.com" \
-PUBLIC_API_SERVICE_ACCOUNT="declip-api-dev@declip-dev.iam.gserviceaccount.com" \
-INFERENCE_SERVICE_ACCOUNT="declip-inference-dev@declip-dev.iam.gserviceaccount.com" \
-scripts/deploy-cloud-run-dev.sh
+cp scripts/deploy-cloud-run-dev.env.example .env.deploy.dev
+./scripts/deploy-cloud-run-dev.sh
 ```
 
 The script builds and pushes the image, deploys private Cloud Run, and prints
-the smoke-test command. It sets all environment variables in the deploy call.
+the service URL. It loads `.env.deploy.dev` when present and sets all runtime
+environment variables in the deploy call. The env template contains the dev
+Terraform output values and deployed conversion service URL; keep the copied
+file untracked.
 If `INFERENCE_SERVICE_AUDIENCE` is not supplied, it reuses the existing Cloud
 Run service URL. For a first deploy where no service URL exists yet, set
 `INFERENCE_SERVICE_AUDIENCE` explicitly. Cloud Run invoker IAM should already
@@ -109,7 +102,7 @@ export INFERENCE_SERVICE_ACCOUNT="declip-inference@${PROJECT_ID}.iam.gserviceacc
 export CLOUD_TASKS_SERVICE_ACCOUNT="declip-tasks@${PROJECT_ID}.iam.gserviceaccount.com"
 export PUBLIC_API_SERVICE_ACCOUNT="declip-api@${PROJECT_ID}.iam.gserviceaccount.com"
 export AUDIO_BUCKET_NAME="declip-audio-dev"
-export CLOUD_TASKS_CONVERSION_QUEUE="declip-conversion-dev"
+export CLOUD_TASKS_CONVERSION_QUEUE="declip-audio-conversion-dev"
 export CLOUD_TASKS_LOCATION="${REGION}"
 export CONVERSION_SERVICE_URL="<conversion-service-url>"
 export CONVERSION_SERVICE_AUDIENCE="${CONVERSION_SERVICE_URL}"

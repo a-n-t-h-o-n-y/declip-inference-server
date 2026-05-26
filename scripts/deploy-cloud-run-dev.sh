@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ENV_FILE="${DEPLOY_ENV_FILE:-.env.deploy.dev}"
+if [[ -f "${ENV_FILE}" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "${ENV_FILE}"
+  set +a
+  echo "Loaded deploy environment from ${ENV_FILE}"
+fi
+
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null)}"
 REGION="${REGION:-us-central1}"
 REPOSITORY="${REPOSITORY:-declip-dev}"
 SERVICE="${SERVICE:-declip-inference-dev}"
-IMAGE_TAG="${IMAGE_TAG:-smoke}"
+IMAGE_TAG="${IMAGE_TAG:-dev}"
 
 APP_ENV="${APP_ENV:-dev}"
 APP_RUNTIME_MODE="${APP_RUNTIME_MODE:-cloud}"
@@ -16,7 +25,7 @@ LOG_LEVEL="${LOG_LEVEL:-INFO}"
 GCP_PROJECT_ID="${GCP_PROJECT_ID:-${PROJECT_ID}}"
 FIRESTORE_DATABASE="${FIRESTORE_DATABASE:-(default)}"
 GCS_BUCKET_NAME="${GCS_BUCKET_NAME:-}"
-CLOUD_TASKS_CONVERSION_QUEUE="${CLOUD_TASKS_CONVERSION_QUEUE:-declip-conversion-dev}"
+CLOUD_TASKS_CONVERSION_QUEUE="${CLOUD_TASKS_CONVERSION_QUEUE:-declip-audio-conversion-dev}"
 CLOUD_TASKS_LOCATION="${CLOUD_TASKS_LOCATION:-${REGION}}"
 CLOUD_TASKS_SERVICE_ACCOUNT="${CLOUD_TASKS_SERVICE_ACCOUNT:-declip-tasks-dev@${PROJECT_ID}.iam.gserviceaccount.com}"
 CONVERSION_SERVICE_URL="${CONVERSION_SERVICE_URL:-}"
@@ -55,6 +64,7 @@ if [[ "${APP_RUNTIME_MODE}" == "cloud" ]]; then
   if (( ${#missing[@]} > 0 )); then
     printf 'Missing required cloud-mode env vars:\n' >&2
     printf '  - %s\n' "${missing[@]}" >&2
+    printf '\nCopy scripts/deploy-cloud-run-dev.env.example to .env.deploy.dev, fill it, then rerun this script.\n' >&2
     exit 1
   fi
 fi
@@ -127,3 +137,6 @@ echo
 echo "Service URL: ${SERVICE_URL}"
 echo "Audience: ${INFERENCE_SERVICE_AUDIENCE}"
 echo
+echo "If this is the first inference-service deploy, set in backend Terraform dev tfvars:"
+printf '  inference_cloud_run_service_name = "%s"\n' "${SERVICE}"
+echo "then run: terraform -chdir=../declip-backend-server/infra/terraform/envs/dev apply"
