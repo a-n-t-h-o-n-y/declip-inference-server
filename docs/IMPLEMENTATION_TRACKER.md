@@ -11,11 +11,11 @@ Initial deploy should be usable without model execution:
 - Validate private service auth.
 - Return sanitized model catalog to the public API.
 - Accept Cloud Tasks job payloads.
-- Read and update shared Firestore job/quota records.
-- Download the input audio from GCS.
-- Probe and validate decoded audio with `ffprobe`.
-- Upload the input bytes as the output object through passthrough inference.
-- Mark the job `succeeded` or `failed` with user-safe errors.
+- Read inference-ready Firestore jobs at `processing/awaiting_inference`.
+- Download and validate canonical `model-input.f32.wav` from GCS.
+- Upload canonical `model-output.f32.wav` through passthrough inference.
+- Advance to `awaiting_output_encoding` and enqueue CPU finalization.
+- Mark permanent inference failures `failed` with user-safe errors.
 
 Real declipping model loading and channel processing will replace the
 passthrough runner later behind the same inference interface.
@@ -33,16 +33,17 @@ passthrough runner later behind the same inference interface.
 - [x] Add local fake token verifier for tests/dev.
 - [x] Add `POST /tasks/process-job` route.
 - [x] Add task processor service boundary.
-- [x] Add idempotent task behavior for terminal/processing jobs.
+- [x] Add idempotent task behavior for terminal/output-encoding jobs.
 - [x] Add ownership mismatch handling.
-- [x] Add unsupported sample-rate permanent failure handling.
+- [x] Add preselected model-rate permanent failure handling.
 - [x] Add in-memory job/quota/storage fakes for tests.
 - [x] Add Firestore job repository.
-- [x] Add Firestore quota service.
+- [x] Add Firestore quota release service for permanent inference failures.
 - [x] Add GCS storage service.
 - [x] Add passthrough inference runner for initial deploy.
 - [x] Add audio probe interface and `ffprobe` implementation.
-- [x] Add decoded audio duration/sample-rate/channel validation.
+- [x] Add canonical PCM duration/sample-rate/channel/codec validation.
+- [x] Add conversion finalization queue boundary and Cloud Tasks implementation.
 - [x] Add focused tests that do not require GCP, GPU, model artifacts, or
   `ffmpeg`.
 
@@ -51,10 +52,7 @@ passthrough runner later behind the same inference interface.
 - [x] Add Firestore/GCS dependency error mapping so transient failures return
   retryable `503` responses instead of generic `500`.
 - [x] Confirm Firestore field names match the public API job/quota documents.
-- [x] Confirm quota field names and semantics with the public API reservation
-  implementation.
-- [x] Add output GCS URI fallback policy if existing queued jobs do not already
-  include `output_gcs_uri`.
+- [x] Confirm inference does not consume quota before CPU output finalization.
 - [x] Add Docker runtime packages for audio probing, especially `ffmpeg`
   / `ffprobe`.
 - [x] Add deployment docs with required environment variables and Cloud Run
@@ -77,17 +75,15 @@ Minimum smoke scope:
   `/internal/model-catalog`.
 - [ ] Confirm the Cloud Tasks service account can call
   `/tasks/process-job`.
-- [ ] Seed or create one queued job with a small valid audio file in GCS.
+- [ ] Seed one `processing/awaiting_inference` job with canonical PCM in GCS.
 - [ ] Process that job through Cloud Tasks.
-- [ ] Confirm the output object exists and matches passthrough behavior.
-- [ ] Confirm Firestore job status becomes `succeeded`.
-- [ ] Confirm reserved quota moves to used quota once.
+- [ ] Confirm `model-output.f32.wav` exists and matches passthrough behavior.
+- [ ] Confirm Firestore stage becomes `awaiting_output_encoding`.
+- [ ] Confirm one `/tasks/finalize-output` conversion task is enqueued.
 - [ ] Confirm retrying the same task is idempotent.
 
 ## Remaining After First GCP Smoke
 
-- [ ] Add full audio conversion boundary with `ffmpeg`.
-- [ ] Add working WAV generation.
 - [ ] Add channel splitting and recombination.
 - [ ] Add model artifact download/cache strategy.
 - [ ] Add TorchScript model runtime implementation.

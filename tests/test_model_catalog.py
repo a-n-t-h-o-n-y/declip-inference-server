@@ -19,7 +19,6 @@ def test_public_catalog_omits_private_artifact_uris() -> None:
             "description": "General declipping model family.",
             "enabled": True,
             "supported_sample_rates_hz": [44100, 48000],
-            "default_output_format": "wav",
         }
     ]
     assert "artifact_uri" not in str(response)

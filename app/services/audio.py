@@ -13,6 +13,7 @@ class AudioMetadata:
     sample_rate_hz: int
     channels: int
     format_name: str | None = None
+    codec_name: str | None = None
     bit_depth: int | None = None
 
 
@@ -28,7 +29,8 @@ class FfprobeAudioProbeService:
             "-v",
             "error",
             "-show_entries",
-            "format=duration,format_name:stream=codec_type,sample_rate,channels,bits_per_sample",
+            "format=duration,format_name:"
+            "stream=codec_type,codec_name,sample_rate,channels,bits_per_sample",
             "-of",
             "json",
             str(path),
@@ -54,6 +56,7 @@ class FfprobeAudioProbeService:
             duration = float(payload.get("format", {}).get("duration"))
             sample_rate = int(audio_stream["sample_rate"])
             channels = int(audio_stream["channels"])
+            codec_name = str(audio_stream["codec_name"])
             raw_bit_depth = audio_stream.get("bits_per_sample")
             bit_depth = int(raw_bit_depth) if raw_bit_depth not in {None, 0, "0"} else None
         except (StopIteration, KeyError, TypeError, ValueError) as exc:
@@ -64,6 +67,7 @@ class FfprobeAudioProbeService:
             sample_rate_hz=sample_rate,
             channels=channels,
             format_name=payload.get("format", {}).get("format_name"),
+            codec_name=codec_name,
             bit_depth=bit_depth,
         )
 
@@ -89,10 +93,32 @@ def validate_audio_metadata(
     if metadata.sample_rate_hz != expected_sample_rate_hz:
         raise PermanentInferenceError(
             "sample_rate_mismatch",
-            "Decoded audio sample rate does not match the queued job.",
+            "Model input audio sample rate does not match the planned model rate.",
         )
     if metadata.channels != expected_channels:
         raise PermanentInferenceError(
             "channel_count_mismatch",
-            "Decoded audio channel count does not match the queued job.",
+            "Model input audio channel count does not match the job.",
+        )
+
+
+def validate_canonical_pcm_metadata(
+    metadata: AudioMetadata,
+    expected_sample_rate_hz: int,
+    expected_channels: int,
+    max_duration_seconds: int,
+) -> None:
+    validate_audio_metadata(
+        metadata=metadata,
+        expected_sample_rate_hz=expected_sample_rate_hz,
+        expected_channels=expected_channels,
+        max_duration_seconds=max_duration_seconds,
+    )
+    if (
+        "wav" not in (metadata.format_name or "").split(",")
+        or metadata.codec_name != "pcm_f32le"
+    ):
+        raise PermanentInferenceError(
+            "invalid_processing_audio",
+            "Model input audio is not canonical PCM.",
         )

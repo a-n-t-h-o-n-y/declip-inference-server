@@ -40,3 +40,36 @@ def test_audio_validation_raises_user_safe_permanent_errors(
         )
 
     assert exc_info.value.code == code
+
+
+def test_canonical_pcm_validation_requires_float_wav_codec() -> None:
+    from app.services.audio import validate_canonical_pcm_metadata
+
+    validate_canonical_pcm_metadata(
+        AudioMetadata(
+            duration_seconds=10.0,
+            sample_rate_hz=44100,
+            channels=2,
+            format_name="wav",
+            codec_name="pcm_f32le",
+        ),
+        expected_sample_rate_hz=44100,
+        expected_channels=2,
+        max_duration_seconds=1200,
+    )
+
+    with pytest.raises(PermanentInferenceError) as exc_info:
+        validate_canonical_pcm_metadata(
+            AudioMetadata(
+                duration_seconds=10.0,
+                sample_rate_hz=44100,
+                channels=2,
+                format_name="wav",
+                codec_name="pcm_s16le",
+            ),
+            expected_sample_rate_hz=44100,
+            expected_channels=2,
+            max_duration_seconds=1200,
+        )
+
+    assert exc_info.value.code == "invalid_processing_audio"

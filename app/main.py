@@ -11,6 +11,7 @@ from app.services.database import FirestoreJobRepository, InMemoryJobRepository
 from app.services.inference import PassthroughInferenceRunner
 from app.services.model_catalog import ModelCatalog
 from app.services.quotas import FirestoreQuotaService, InMemoryQuotaService
+from app.services.queue import CloudTasksFinalizationQueue, InMemoryFinalizationQueue
 from app.services.storage import GcsStorageService, InMemoryStorageService
 from app.services.task_auth import FakeServiceTokenVerifier, GoogleServiceTokenVerifier
 from app.services.task_processing import FakeInferenceRunner, TaskProcessor
@@ -35,8 +36,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.job_repository = InMemoryJobRepository()
         app.state.quota_service = InMemoryQuotaService()
         app.state.storage_service = InMemoryStorageService()
+        app.state.finalization_queue = InMemoryFinalizationQueue()
         inference = FakeInferenceRunner()
     else:
+        required_queue_settings = {
+            "GCP_PROJECT_ID": settings.gcp_project_id,
+            "CLOUD_TASKS_LOCATION": settings.cloud_tasks_location,
+            "CLOUD_TASKS_CONVERSION_QUEUE": settings.cloud_tasks_conversion_queue,
+            "CONVERSION_SERVICE_URL": settings.conversion_service_url,
+            "CLOUD_TASKS_SERVICE_ACCOUNT": settings.cloud_tasks_service_account,
+            "CONVERSION_SERVICE_AUDIENCE": settings.conversion_service_audience,
+        }
+        missing = [name for name, value in required_queue_settings.items() if not value]
+        if missing:
+            raise ValueError(f"Missing cloud finalization queue settings: {', '.join(missing)}")
         app.state.job_repository = FirestoreJobRepository(
             project_id=settings.gcp_project_id,
             database=settings.firestore_database,
@@ -47,6 +60,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         app.state.storage_service = GcsStorageService(project_id=settings.gcp_project_id)
         app.state.audio_probe_service = FfprobeAudioProbeService()
+        app.state.finalization_queue = CloudTasksFinalizationQueue(
+            project_id=settings.gcp_project_id,
+            location=settings.cloud_tasks_location,
+            queue_name=settings.cloud_tasks_conversion_queue,
+            service_url=settings.conversion_service_url,
+            service_account_email=settings.cloud_tasks_service_account,
+            audience=settings.conversion_service_audience,
+        )
         inference = PassthroughInferenceRunner(
             storage=app.state.storage_service,
             audio_probe=app.state.audio_probe_service,
@@ -58,6 +79,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         quotas=app.state.quota_service,
         catalog=catalog,
         inference=inference,
+        finalization_queue=app.state.finalization_queue,
     )
 
     app.add_middleware(RequestContextMiddleware)

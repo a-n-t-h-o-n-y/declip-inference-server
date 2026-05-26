@@ -4,7 +4,6 @@ model_families:
     enabled: true
     display_name: DDD v1
     description: General declipping model family.
-    default_output_format: wav
     models:
       - sample_rate_hz: 44100
         model_name: ddd-v1-44k

@@ -1,9 +1,9 @@
 # Initial Cloud Run Deployment
 
-This service is ready for a first GCP smoke test in passthrough mode. The first
-deployment validates private service auth, model catalog discovery, Cloud Tasks
-invocation, Firestore job/quota updates, GCS input/output movement, and audio
-probing. It does not run a declipping model yet.
+This service consumes canonical PCM prepared by the CPU conversion service.
+In passthrough mode it validates private service auth, reads
+`model-input.f32.wav`, writes `model-output.f32.wav`, and enqueues CPU final
+output encoding. It does not run a declipping model yet.
 
 ## Prerequisites
 
@@ -11,7 +11,7 @@ The shared public API project must already provide:
 
 - Firestore database.
 - GCS audio bucket.
-- Cloud Tasks queue.
+- Inference and conversion Cloud Tasks queues.
 - Artifact Registry Docker repository.
 - Public API runtime service account.
 - Inference runtime service account.
@@ -22,6 +22,8 @@ Required IAM:
 - Inference runtime service account has `roles/datastore.user` on the project.
 - Inference runtime service account has `roles/storage.objectAdmin` on the
   audio bucket.
+- Inference runtime service account can enqueue tasks on the conversion queue
+  and attach the configured Cloud Tasks OIDC service account.
 - Cloud Tasks OIDC service account has `roles/run.invoker` on this Cloud Run
   service.
 - Public API runtime service account has `roles/run.invoker` on this Cloud Run
@@ -44,7 +46,11 @@ LOG_LEVEL=INFO
 GCP_PROJECT_ID=<project-id>
 FIRESTORE_DATABASE=(default)
 GCS_BUCKET_NAME=<audio-bucket-name>
+CLOUD_TASKS_CONVERSION_QUEUE=<conversion-queue-name>
+CLOUD_TASKS_LOCATION=<queue-location>
 CLOUD_TASKS_SERVICE_ACCOUNT=<cloud-tasks-service-account-email>
+CONVERSION_SERVICE_URL=<conversion-cloud-run-service-url>
+CONVERSION_SERVICE_AUDIENCE=<conversion-cloud-run-service-url>
 INFERENCE_SERVICE_AUDIENCE=<cloud-run-service-url>
 ALLOWED_INTERNAL_CALLER_SERVICE_ACCOUNTS=["<public-api-runtime-service-account-email>"]
 MODEL_CONFIG_PATH=config/models.yaml
@@ -73,6 +79,8 @@ REPOSITORY="declip-dev" \
 SERVICE="declip-inference-dev" \
 IMAGE_TAG="$(git rev-parse --short HEAD)" \
 GCS_BUCKET_NAME="declip-audio-dev" \
+CLOUD_TASKS_CONVERSION_QUEUE="declip-conversion-dev" \
+CONVERSION_SERVICE_URL="<conversion-service-url>" \
 CLOUD_TASKS_SERVICE_ACCOUNT="declip-tasks-dev@declip-dev.iam.gserviceaccount.com" \
 PUBLIC_API_SERVICE_ACCOUNT="declip-api-dev@declip-dev.iam.gserviceaccount.com" \
 INFERENCE_SERVICE_ACCOUNT="declip-inference-dev@declip-dev.iam.gserviceaccount.com" \
@@ -101,6 +109,10 @@ export INFERENCE_SERVICE_ACCOUNT="declip-inference@${PROJECT_ID}.iam.gserviceacc
 export CLOUD_TASKS_SERVICE_ACCOUNT="declip-tasks@${PROJECT_ID}.iam.gserviceaccount.com"
 export PUBLIC_API_SERVICE_ACCOUNT="declip-api@${PROJECT_ID}.iam.gserviceaccount.com"
 export AUDIO_BUCKET_NAME="declip-audio-dev"
+export CLOUD_TASKS_CONVERSION_QUEUE="declip-conversion-dev"
+export CLOUD_TASKS_LOCATION="${REGION}"
+export CONVERSION_SERVICE_URL="<conversion-service-url>"
+export CONVERSION_SERVICE_AUDIENCE="${CONVERSION_SERVICE_URL}"
 export INFERENCE_SERVICE_AUDIENCE="<caller-oidc-audience>"
 ```
 
@@ -125,7 +137,7 @@ gcloud run deploy "${SERVICE_NAME}" \
   --memory=4Gi \
   --timeout=3600 \
   --concurrency=1 \
-  --set-env-vars="APP_ENV=dev,APP_RUNTIME_MODE=cloud,APP_NAME=declip-inference-server,APP_VERSION=0.1.0,LOG_LEVEL=INFO,GCP_PROJECT_ID=${PROJECT_ID},FIRESTORE_DATABASE=(default),GCS_BUCKET_NAME=${AUDIO_BUCKET_NAME},CLOUD_TASKS_SERVICE_ACCOUNT=${CLOUD_TASKS_SERVICE_ACCOUNT},INFERENCE_SERVICE_AUDIENCE=${INFERENCE_SERVICE_AUDIENCE},ALLOWED_INTERNAL_CALLER_SERVICE_ACCOUNTS=[\"${PUBLIC_API_SERVICE_ACCOUNT}\"],MODEL_CONFIG_PATH=config/models.yaml,APP_CONFIG_PATH=config/app.yaml,MODEL_ARTIFACT_CACHE_DIR=/tmp/declip-models,INFERENCE_DEVICE=cpu,INFERENCE_BACKEND=passthrough,MAX_DECODED_DURATION_SECONDS=1200"
+  --set-env-vars="APP_ENV=dev,APP_RUNTIME_MODE=cloud,APP_NAME=declip-inference-server,APP_VERSION=0.1.0,LOG_LEVEL=INFO,GCP_PROJECT_ID=${PROJECT_ID},FIRESTORE_DATABASE=(default),GCS_BUCKET_NAME=${AUDIO_BUCKET_NAME},CLOUD_TASKS_CONVERSION_QUEUE=${CLOUD_TASKS_CONVERSION_QUEUE},CLOUD_TASKS_LOCATION=${CLOUD_TASKS_LOCATION},CLOUD_TASKS_SERVICE_ACCOUNT=${CLOUD_TASKS_SERVICE_ACCOUNT},CONVERSION_SERVICE_URL=${CONVERSION_SERVICE_URL},CONVERSION_SERVICE_AUDIENCE=${CONVERSION_SERVICE_AUDIENCE},INFERENCE_SERVICE_AUDIENCE=${INFERENCE_SERVICE_AUDIENCE},ALLOWED_INTERNAL_CALLER_SERVICE_ACCOUNTS=[\"${PUBLIC_API_SERVICE_ACCOUNT}\"],MODEL_CONFIG_PATH=config/models.yaml,APP_CONFIG_PATH=config/app.yaml,MODEL_ARTIFACT_CACHE_DIR=/tmp/declip-models,INFERENCE_DEVICE=cpu,INFERENCE_BACKEND=passthrough,MAX_DECODED_DURATION_SECONDS=1200"
 ```
 
 After deploy, get the actual service URL for callers and smoke tests:

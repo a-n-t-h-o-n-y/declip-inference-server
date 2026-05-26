@@ -12,6 +12,9 @@ class VerifiedServiceToken:
 
 
 TERMINAL_JOB_STATUSES = {"succeeded", "failed", "cancelled"}
+AWAITING_INFERENCE_STAGE = "awaiting_inference"
+INFERRING_STAGE = "inferring"
+AWAITING_OUTPUT_ENCODING_STAGE = "awaiting_output_encoding"
 
 
 @dataclass
@@ -20,12 +23,15 @@ class JobRecord:
     user_id: str
     status: str
     model_family: str
-    input_gcs_uri: str
+    input_gcs_uri: str | None
     input_duration_seconds: float
     input_sample_rate_hz: int
     input_channels: int
     input_content_type: str | None = None
     input_size_bytes: int | None = None
+    processing_stage: str | None = None
+    model_input_gcs_uri: str | None = None
+    model_output_gcs_uri: str | None = None
     output_gcs_uri: str | None = None
     model_name: str | None = None
     model_version: str | None = None
@@ -34,11 +40,14 @@ class JobRecord:
     output_content_type: str | None = None
     output_size_bytes: int | None = None
     output_duration_seconds: float | None = None
+    processing_codec: str | None = None
+    processing_sample_rate_hz: int | None = None
     error_code: str | None = None
     error_message: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
     updated_at: datetime | None = None
+    reserved_quota_released_at: datetime | None = None
 
     def touch(self) -> None:
         self.updated_at = datetime.now(timezone.utc)

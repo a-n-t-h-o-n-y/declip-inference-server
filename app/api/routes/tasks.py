@@ -17,4 +17,9 @@ async def process_job(
     processor: Annotated[TaskProcessor, Depends(get_task_processor)],
 ) -> ProcessJobResponse:
     result = processor.process(payload)
-    return ProcessJobResponse(job_id=result.job_id, status=result.status, attempt=payload.attempt)
+    return ProcessJobResponse(
+        job_id=result.job_id,
+        status=result.status,
+        processing_stage=result.processing_stage,
+        attempt=payload.attempt,
+    )

@@ -54,27 +54,29 @@ Use the public API path when possible:
 2. Create a job through the public API.
 3. Upload a small valid WAV file.
 4. Confirm upload so the public API validates audio metadata, reserves quota,
-   and enqueues the Cloud Task.
-5. Wait for the task to call `POST /tasks/process-job`.
-6. Confirm the Firestore job becomes `succeeded`.
-7. Confirm `output_gcs_uri` exists in the audio bucket.
-8. Confirm quota moved from `audio_seconds_reserved` to `audio_seconds_used`.
-9. Re-run the same task or wait for a retry and confirm no duplicate quota
+   and enqueues input conversion.
+5. Confirm CPU conversion writes `model-input.f32.wav`, chooses
+   `model_sample_rate_hz`, and enqueues `POST /tasks/process-job`.
+6. Confirm the Firestore job becomes `processing/awaiting_output_encoding`.
+7. Confirm `model_output_gcs_uri` exists in the audio bucket.
+8. Confirm a conversion `/tasks/finalize-output` task was enqueued.
+9. Let finalization run, then confirm the job is `succeeded` and quota moved
+   from `audio_seconds_reserved` to `audio_seconds_used`.
+10. Re-run the same task or wait for a retry and confirm no duplicate quota
    consumption occurs.
 
 Expected passthrough behavior:
 
-- Output bytes match the input object.
+- `model-output.f32.wav` bytes match `model-input.f32.wav`.
 - Output metadata includes `inference_backend=passthrough`.
-- Job output fields are populated:
+- Inference-populated job fields include:
   - `model_name`
   - `model_version`
   - `model_sample_rate_hz`
-  - `output_gcs_uri`
-  - `output_format`
-  - `output_content_type`
-  - `output_size_bytes`
-  - `output_duration_seconds`
+  - `model_input_gcs_uri`
+  - `model_output_gcs_uri`
+  - `processing_codec`
+  - `processing_sample_rate_hz`
 
 ## Troubleshooting
 

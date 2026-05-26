@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     cloud_tasks_service_account: str | None = Field(
         default=None, alias="CLOUD_TASKS_SERVICE_ACCOUNT"
     )
+    cloud_tasks_conversion_queue: str | None = Field(
+        default=None, alias="CLOUD_TASKS_CONVERSION_QUEUE"
+    )
+    cloud_tasks_location: str | None = Field(default=None, alias="CLOUD_TASKS_LOCATION")
+    conversion_service_url: str | None = Field(default=None, alias="CONVERSION_SERVICE_URL")
+    conversion_service_audience: str | None = Field(
+        default=None, alias="CONVERSION_SERVICE_AUDIENCE"
+    )
     inference_service_audience: str | None = Field(default=None, alias="INFERENCE_SERVICE_AUDIENCE")
     allowed_internal_caller_service_accounts: str = Field(
         default="", alias="ALLOWED_INTERNAL_CALLER_SERVICE_ACCOUNTS"

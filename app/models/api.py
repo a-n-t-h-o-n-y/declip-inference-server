@@ -20,7 +20,6 @@ class PublicModelFamily(BaseModel):
     description: str
     enabled: bool
     supported_sample_rates_hz: list[int]
-    default_output_format: str
 
 
 class PublicModelCatalog(BaseModel):
@@ -41,4 +40,5 @@ class ProcessJobResponse(BaseModel):
 
     job_id: str
     status: str
+    processing_stage: str | None = None
     attempt: int

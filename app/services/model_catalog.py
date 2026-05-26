@@ -28,7 +28,6 @@ class ModelFamilyConfig(BaseModel):
     enabled: bool = True
     display_name: str = Field(min_length=1)
     description: str = ""
-    default_output_format: str = "wav"
     models: list[ConcreteModelConfig] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -78,7 +77,6 @@ class ModelCatalog:
                     description=family.description,
                     enabled=True,
                     supported_sample_rates_hz=supported_sample_rates,
-                    default_output_format=family.default_output_format,
                 )
             )
         return PublicModelCatalog(
