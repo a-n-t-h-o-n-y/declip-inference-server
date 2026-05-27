@@ -6,19 +6,20 @@ without rereading the full agent guide.
 
 ## Current Deploy Target
 
-Initial deploy should be usable without model execution:
+Initial model-runtime deploy validates artifact execution without declipping:
 
 - Validate private service auth.
 - Return sanitized model catalog to the public API.
 - Accept Cloud Tasks job payloads.
 - Read inference-ready Firestore jobs at `processing/awaiting_inference`.
 - Download and validate canonical `model-input.f32.wav` from GCS.
-- Upload canonical `model-output.f32.wav` through passthrough inference.
+- Load the `48 kHz` identity STFT TorchScript artifact from configured storage.
+- Upload canonical `model-output.f32.wav` after identity STFT/iSTFT inference.
 - Advance to `awaiting_output_encoding` and enqueue CPU finalization.
 - Mark permanent inference failures `failed` with user-safe errors.
 
-Real declipping model loading and channel processing will replace the
-passthrough runner later behind the same inference interface.
+Real declipping inference will replace the identity transform later behind the
+same inference interface.
 
 ## Completed
 
@@ -41,6 +42,7 @@ passthrough runner later behind the same inference interface.
 - [x] Add Firestore quota release service for permanent inference failures.
 - [x] Add GCS storage service.
 - [x] Add passthrough inference runner for initial deploy.
+- [x] Add channel-preserving, chunked identity STFT TorchScript runner.
 - [x] Add audio probe interface and `ffprobe` implementation.
 - [x] Add canonical PCM duration/sample-rate/channel/codec validation.
 - [x] Add conversion finalization queue boundary and Cloud Tasks implementation.
@@ -63,8 +65,8 @@ passthrough runner later behind the same inference interface.
 ## First GCP Smoke Test
 
 Run the first GCP test after the "Remaining Before First GCP Smoke" checklist is
-done. Do not wait for real model runtime work; passthrough inference is enough
-to validate the service boundary.
+done. The identity STFT artifact is sufficient to validate the service and
+model-loading boundary without waiting for a trained declipping model.
 
 Minimum smoke scope:
 
@@ -77,7 +79,7 @@ Minimum smoke scope:
   `/tasks/process-job`.
 - [ ] Seed one `processing/awaiting_inference` job with canonical PCM in GCS.
 - [ ] Process that job through Cloud Tasks.
-- [ ] Confirm `model-output.f32.wav` exists and matches passthrough behavior.
+- [ ] Confirm `model-output.f32.wav` exists and matches identity behavior.
 - [ ] Confirm Firestore stage becomes `awaiting_output_encoding`.
 - [ ] Confirm one `/tasks/finalize-output` conversion task is enqueued.
 - [ ] Confirm retrying the same task is idempotent.
@@ -88,7 +90,7 @@ Minimum smoke scope:
 - [ ] Add model artifact download/cache strategy.
 - [ ] Add TorchScript model runtime implementation.
 - [ ] Add GPU device selection and model load lifecycle.
-- [ ] Replace passthrough inference with real declipping model processing.
+- [ ] Replace identity STFT inference with real declipping model processing.
 - [ ] Add broader model-runtime tests with fakes.
 - [ ] Add opt-in live GCP smoke tests.
 - [ ] Add production operations docs.

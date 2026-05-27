@@ -1,9 +1,9 @@
-# Initial Cloud Run Deployment
+# Identity STFT Debug Model Deployment
 
 This service consumes canonical PCM prepared by the CPU conversion service.
-In passthrough mode it validates private service auth, reads
-`model-input.f32.wav`, writes `model-output.f32.wav`, and enqueues CPU final
-output encoding. It does not run a declipping model yet.
+In identity-STFT mode it loads the exported TorchScript debug artifact, applies
+STFT/iSTFT without declipping, writes `model-output.f32.wav`, and enqueues CPU
+final output encoding.
 
 ## Prerequisites
 
@@ -22,6 +22,8 @@ Required IAM:
 - Inference runtime service account has `roles/datastore.user` on the project.
 - Inference runtime service account has `roles/storage.objectAdmin` on the
   audio bucket.
+- Inference runtime service account has read access to the model artifact
+  bucket containing the configured identity `.pt` artifact.
 - Inference runtime service account can enqueue tasks on the conversion queue
   and attach the configured Cloud Tasks OIDC service account.
 - Cloud Tasks OIDC service account has `roles/run.invoker` on this Cloud Run
@@ -57,12 +59,24 @@ MODEL_CONFIG_PATH=config/models.yaml
 APP_CONFIG_PATH=config/app.yaml
 MODEL_ARTIFACT_CACHE_DIR=/tmp/declip-models
 INFERENCE_DEVICE=cpu
-INFERENCE_BACKEND=passthrough
+INFERENCE_BACKEND=identity_stft
 MAX_DECODED_DURATION_SECONDS=1200
 ```
 
-For the initial passthrough deployment, `INFERENCE_DEVICE` is not used by the
-runner. Use `cpu` until the model runtime lands.
+The identity STFT debug runtime is CPU-only and accepts canonical `48000` Hz
+audio. It validates pipeline integration, not declipping quality.
+
+## Publish Identity Artifact
+
+From `declip-model`, export and upload the artifact referenced by
+`config/models.yaml`:
+
+```bash
+uv run python scripts/export_identity_stft.py --output-dir artifacts/identity-stft-v0/export-20260526
+gcloud storage cp \
+  artifacts/identity-stft-v0/export-20260526/identity-stft-v0-48khz-0.1.0.pt \
+  gs://declip-models-dev/identity-stft-v0/48000/identity-stft-v0-48khz-0.1.0.pt
+```
 
 `INFERENCE_SERVICE_AUDIENCE` should match the audience used by Cloud Tasks and
 the public API when minting OIDC tokens. The simplest first smoke is to use the
@@ -130,7 +144,7 @@ gcloud run deploy "${SERVICE_NAME}" \
   --memory=4Gi \
   --timeout=3600 \
   --concurrency=1 \
-  --set-env-vars="APP_ENV=dev,APP_RUNTIME_MODE=cloud,APP_NAME=declip-inference-server,APP_VERSION=0.1.0,LOG_LEVEL=INFO,GCP_PROJECT_ID=${PROJECT_ID},FIRESTORE_DATABASE=(default),GCS_BUCKET_NAME=${AUDIO_BUCKET_NAME},CLOUD_TASKS_CONVERSION_QUEUE=${CLOUD_TASKS_CONVERSION_QUEUE},CLOUD_TASKS_LOCATION=${CLOUD_TASKS_LOCATION},CLOUD_TASKS_SERVICE_ACCOUNT=${CLOUD_TASKS_SERVICE_ACCOUNT},CONVERSION_SERVICE_URL=${CONVERSION_SERVICE_URL},CONVERSION_SERVICE_AUDIENCE=${CONVERSION_SERVICE_AUDIENCE},INFERENCE_SERVICE_AUDIENCE=${INFERENCE_SERVICE_AUDIENCE},ALLOWED_INTERNAL_CALLER_SERVICE_ACCOUNTS=[\"${PUBLIC_API_SERVICE_ACCOUNT}\"],MODEL_CONFIG_PATH=config/models.yaml,APP_CONFIG_PATH=config/app.yaml,MODEL_ARTIFACT_CACHE_DIR=/tmp/declip-models,INFERENCE_DEVICE=cpu,INFERENCE_BACKEND=passthrough,MAX_DECODED_DURATION_SECONDS=1200"
+  --set-env-vars="APP_ENV=dev,APP_RUNTIME_MODE=cloud,APP_NAME=declip-inference-server,APP_VERSION=0.1.0,LOG_LEVEL=INFO,GCP_PROJECT_ID=${PROJECT_ID},FIRESTORE_DATABASE=(default),GCS_BUCKET_NAME=${AUDIO_BUCKET_NAME},CLOUD_TASKS_CONVERSION_QUEUE=${CLOUD_TASKS_CONVERSION_QUEUE},CLOUD_TASKS_LOCATION=${CLOUD_TASKS_LOCATION},CLOUD_TASKS_SERVICE_ACCOUNT=${CLOUD_TASKS_SERVICE_ACCOUNT},CONVERSION_SERVICE_URL=${CONVERSION_SERVICE_URL},CONVERSION_SERVICE_AUDIENCE=${CONVERSION_SERVICE_AUDIENCE},INFERENCE_SERVICE_AUDIENCE=${INFERENCE_SERVICE_AUDIENCE},ALLOWED_INTERNAL_CALLER_SERVICE_ACCOUNTS=[\"${PUBLIC_API_SERVICE_ACCOUNT}\"],MODEL_CONFIG_PATH=config/models.yaml,APP_CONFIG_PATH=config/app.yaml,MODEL_ARTIFACT_CACHE_DIR=/tmp/declip-models,INFERENCE_DEVICE=cpu,INFERENCE_BACKEND=identity_stft,MAX_DECODED_DURATION_SECONDS=1200"
 ```
 
 After deploy, get the actual service URL for callers and smoke tests:

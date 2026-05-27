@@ -36,8 +36,8 @@ class Settings(BaseSettings):
     model_artifact_cache_dir: Path = Field(
         default=Path("/tmp/declip-models"), alias="MODEL_ARTIFACT_CACHE_DIR"
     )
-    inference_device: str = Field(default="cuda", alias="INFERENCE_DEVICE")
-    inference_backend: str = Field(default="passthrough", alias="INFERENCE_BACKEND")
+    inference_device: str = Field(default="cpu", alias="INFERENCE_DEVICE")
+    inference_backend: str = Field(default="identity_stft", alias="INFERENCE_BACKEND")
     max_decoded_duration_seconds: int = Field(default=1200, alias="MAX_DECODED_DURATION_SECONDS")
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
@@ -52,8 +52,8 @@ class Settings(BaseSettings):
     @field_validator("inference_backend")
     @classmethod
     def validate_inference_backend(cls, value: str) -> str:
-        if value not in {"passthrough"}:
-            raise ValueError("INFERENCE_BACKEND must be passthrough")
+        if value not in {"passthrough", "identity_stft"}:
+            raise ValueError("INFERENCE_BACKEND must be passthrough or identity_stft")
         return value
 
     @property

@@ -14,11 +14,11 @@ def test_public_catalog_omits_private_artifact_uris() -> None:
     assert response["catalog_version"] == "0.1.0"
     assert response["model_families"] == [
         {
-            "family": "ddd-v1",
-            "display_name": "DDD v1",
-            "description": "General declipping model family.",
+            "family": "identity-stft-v0",
+            "display_name": "Identity STFT debug model",
+            "description": "Pipeline-validation transform only; does not repair clipping.",
             "enabled": True,
-            "supported_sample_rates_hz": [44100, 48000],
+            "supported_sample_rates_hz": [48000],
         }
     ]
     assert "artifact_uri" not in str(response)

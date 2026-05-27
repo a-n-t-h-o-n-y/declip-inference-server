@@ -3,9 +3,9 @@
 Run this after the initial private Cloud Run deployment is live and invoke IAM
 has been granted to the public API and Cloud Tasks service accounts.
 
-The smoke test intentionally uses passthrough inference. Success means the
-private service boundary works end to end; it does not validate declipping
-quality.
+The smoke test intentionally uses the identity STFT debug artifact. Success
+means model-artifact loading and the private service boundary work end to end;
+it does not validate declipping quality.
 
 ## Automated Auth Smoke
 
@@ -45,7 +45,7 @@ scripts/gcp_smoke.sh
 The caller needs permission to impersonate the two service accounts if using
 `gcloud auth print-identity-token --impersonate-service-account`.
 
-## Manual End-To-End Passthrough Smoke
+## Manual End-To-End Identity Smoke
 
 Use the public API path when possible:
 
@@ -65,10 +65,10 @@ Use the public API path when possible:
 10. Re-run the same task or wait for a retry and confirm no duplicate quota
    consumption occurs.
 
-Expected passthrough behavior:
+Expected identity behavior:
 
-- `model-output.f32.wav` bytes match `model-input.f32.wav`.
-- Output metadata includes `inference_backend=passthrough`.
+- `model-output.f32.wav` matches decoded input samples within float tolerance.
+- Output metadata includes `inference_backend=identity_stft`.
 - Inference-populated job fields include:
   - `model_name`
   - `model_version`

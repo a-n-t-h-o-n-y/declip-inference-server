@@ -8,7 +8,10 @@ from app.core.errors import register_error_handlers
 from app.core.logging import RequestContextMiddleware, configure_logging
 from app.services.audio import FfprobeAudioProbeService
 from app.services.database import FirestoreJobRepository, InMemoryJobRepository
-from app.services.inference import PassthroughInferenceRunner
+from app.services.inference import (
+    PassthroughInferenceRunner,
+    TorchscriptIdentityInferenceRunner,
+)
 from app.services.initial_dispatch import (
     FirestoreInitialDispatchService,
     InMemoryInitialDispatchService,
@@ -83,11 +86,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             project_id=settings.gcp_project_id,
             database=settings.firestore_database,
         )
-        inference = PassthroughInferenceRunner(
-            storage=app.state.storage_service,
-            audio_probe=app.state.audio_probe_service,
-            max_duration_seconds=settings.max_decoded_duration_seconds,
-        )
+        if settings.inference_backend == "identity_stft":
+            if settings.inference_device != "cpu":
+                raise ValueError("identity_stft inference currently requires INFERENCE_DEVICE=cpu")
+            inference = TorchscriptIdentityInferenceRunner(
+                storage=app.state.storage_service,
+                audio_probe=app.state.audio_probe_service,
+                max_duration_seconds=settings.max_decoded_duration_seconds,
+                artifact_cache_dir=settings.model_artifact_cache_dir,
+            )
+        else:
+            inference = PassthroughInferenceRunner(
+                storage=app.state.storage_service,
+                audio_probe=app.state.audio_probe_service,
+                max_duration_seconds=settings.max_decoded_duration_seconds,
+            )
 
     app.state.task_processor = TaskProcessor(
         jobs=app.state.job_repository,

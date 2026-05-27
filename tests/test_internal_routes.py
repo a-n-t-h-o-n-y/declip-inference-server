@@ -53,7 +53,7 @@ def test_internal_catalog_returns_sanitized_catalog() -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert body["model_families"][0]["supported_sample_rates_hz"] == [44100, 48000]
+    assert body["model_families"][0]["supported_sample_rates_hz"] == [48000]
     assert "artifact_uri" not in str(body)
 
 
