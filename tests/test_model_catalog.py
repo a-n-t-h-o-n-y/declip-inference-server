@@ -14,9 +14,9 @@ def test_public_catalog_omits_private_artifact_uris() -> None:
     assert response["catalog_version"] == "0.1.0"
     assert response["model_families"] == [
         {
-            "family": "identity-stft-v0",
-            "display_name": "Identity STFT debug model",
-            "description": "Pipeline-validation transform only; does not repair clipping.",
+            "family": "declip",
+            "display_name": "Declip learned declipping model",
+            "description": "Learned mono waveform declipping model.",
             "enabled": True,
             "supported_sample_rates_hz": [48000],
         }

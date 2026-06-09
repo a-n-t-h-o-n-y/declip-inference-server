@@ -9,8 +9,10 @@ from app.core.logging import RequestContextMiddleware, configure_logging
 from app.services.audio import FfprobeAudioProbeService
 from app.services.database import FirestoreJobRepository, InMemoryJobRepository
 from app.services.inference import (
+    DeclipArtifactPolicy,
+    DeclipStateDictInferenceRunner,
     PassthroughInferenceRunner,
-    TorchscriptIdentityInferenceRunner,
+    load_declip_artifact,
 )
 from app.services.initial_dispatch import (
     FirestoreInitialDispatchService,
@@ -86,14 +88,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             project_id=settings.gcp_project_id,
             database=settings.firestore_database,
         )
-        if settings.inference_backend == "identity_stft":
-            if settings.inference_device != "cpu":
-                raise ValueError("identity_stft inference currently requires INFERENCE_DEVICE=cpu")
-            inference = TorchscriptIdentityInferenceRunner(
+        if settings.inference_backend == "declip":
+            if not settings.declip_artifact_uri:
+                raise ValueError("DECLIP_ARTIFACT_URI is required for declip inference")
+            loaded_artifact = load_declip_artifact(
+                artifact_uri=settings.declip_artifact_uri,
+                storage=app.state.storage_service,
+                cache_dir=settings.model_artifact_cache_dir,
+                device_name=settings.declip_device or settings.inference_device,
+                policy=DeclipArtifactPolicy(
+                    expected_artifact_format=settings.declip_expected_artifact_format,
+                    expected_format_version=settings.declip_expected_format_version,
+                    expected_model_family=settings.declip_expected_model_family,
+                    expected_model_name=settings.declip_expected_model_name,
+                    expected_model_version=settings.declip_expected_model_version,
+                    expected_declip_model_version=(
+                        settings.declip_expected_declip_model_version
+                    ),
+                    expected_training_git_revision=(
+                        settings.declip_expected_training_git_revision
+                    ),
+                    reject_dirty_training=settings.declip_reject_dirty_training,
+                ),
+            )
+            inference = DeclipStateDictInferenceRunner(
                 storage=app.state.storage_service,
                 audio_probe=app.state.audio_probe_service,
                 max_duration_seconds=settings.max_decoded_duration_seconds,
-                artifact_cache_dir=settings.model_artifact_cache_dir,
+                loaded_artifact=loaded_artifact,
             )
         else:
             inference = PassthroughInferenceRunner(

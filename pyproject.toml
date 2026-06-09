@@ -2,13 +2,14 @@
 name = "declip-inference-server"
 version = "0.1.0"
 description = "Private Declip audio inference service"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.13,<3.14"
 dependencies = [
     "fastapi>=0.115.0",
     "google-auth>=2.35.0",
     "google-cloud-firestore>=2.19.0",
     "google-cloud-storage>=2.18.0",
     "google-cloud-tasks>=2.18.0",
+    "declip-model==0.1.1",
     "numpy>=2.0.0",
     "pydantic>=2.9.0",
     "pydantic-settings>=2.6.0",
@@ -39,13 +40,26 @@ target-version = "py311"
 
 [tool.uv.sources]
 torch = [
-    { index = "pytorch-cpu", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux'" },
+    { index = "pytorch-cpu", marker = "sys_platform == 'win32'" },
 ]
+declip-model = { index = "declip-python" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
+[[tool.uv.index]]
+name = "declip-python"
+url = "https://us-central1-python.pkg.dev/declip-v2-dev/declip-python/simple/"
+explicit = true
+
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
+

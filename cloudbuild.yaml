@@ -1,0 +1,11 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg
+      - GAR_ACCESS_TOKEN=${_GAR_ACCESS_TOKEN}
+      - -t
+      - ${_IMAGE}
+      - .
+images:
+  - ${_IMAGE}

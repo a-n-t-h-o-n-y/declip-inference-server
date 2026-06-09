@@ -37,7 +37,31 @@ class Settings(BaseSettings):
         default=Path("/tmp/declip-models"), alias="MODEL_ARTIFACT_CACHE_DIR"
     )
     inference_device: str = Field(default="cpu", alias="INFERENCE_DEVICE")
-    inference_backend: str = Field(default="identity_stft", alias="INFERENCE_BACKEND")
+    declip_device: str | None = Field(default=None, alias="DECLIP_DEVICE")
+    inference_backend: str = Field(default="declip", alias="INFERENCE_BACKEND")
+    declip_artifact_uri: str | None = Field(default=None, alias="DECLIP_ARTIFACT_URI")
+    declip_expected_artifact_format: str = Field(
+        default="declip_state_dict_v1", alias="DECLIP_EXPECTED_ARTIFACT_FORMAT"
+    )
+    declip_expected_format_version: int = Field(default=1, alias="DECLIP_EXPECTED_FORMAT_VERSION")
+    declip_expected_model_family: str | None = Field(
+        default=None, alias="DECLIP_EXPECTED_MODEL_FAMILY"
+    )
+    declip_expected_model_name: str | None = Field(
+        default=None, alias="DECLIP_EXPECTED_MODEL_NAME"
+    )
+    declip_expected_model_version: str | None = Field(
+        default=None, alias="DECLIP_EXPECTED_MODEL_VERSION"
+    )
+    declip_expected_declip_model_version: str | None = Field(
+        default=None, alias="DECLIP_EXPECTED_DECLIP_MODEL_VERSION"
+    )
+    declip_expected_training_git_revision: str | None = Field(
+        default=None, alias="DECLIP_EXPECTED_TRAINING_GIT_REVISION"
+    )
+    declip_reject_dirty_training: bool = Field(
+        default=True, alias="DECLIP_REJECT_DIRTY_TRAINING"
+    )
     max_decoded_duration_seconds: int = Field(default=1200, alias="MAX_DECODED_DURATION_SECONDS")
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
@@ -52,8 +76,22 @@ class Settings(BaseSettings):
     @field_validator("inference_backend")
     @classmethod
     def validate_inference_backend(cls, value: str) -> str:
-        if value not in {"passthrough", "identity_stft"}:
-            raise ValueError("INFERENCE_BACKEND must be passthrough or identity_stft")
+        if value not in {"passthrough", "declip"}:
+            raise ValueError("INFERENCE_BACKEND must be passthrough or declip")
+        return value
+
+    @field_validator("inference_device")
+    @classmethod
+    def validate_inference_device(cls, value: str) -> str:
+        if value not in {"cpu", "cuda"}:
+            raise ValueError("INFERENCE_DEVICE must be cpu or cuda")
+        return value
+
+    @field_validator("declip_device")
+    @classmethod
+    def validate_declip_device(cls, value: str | None) -> str | None:
+        if value is not None and value not in {"cpu", "cuda"}:
+            raise ValueError("DECLIP_DEVICE must be cpu or cuda")
         return value
 
     @property

@@ -1,13 +1,13 @@
 catalog_version: 0.1.0
 model_families:
-  - family: identity-stft-v0
+  - family: declip
     enabled: true
-    display_name: Identity STFT debug model
-    description: Pipeline-validation transform only; does not repair clipping.
+    display_name: Declip learned declipping model
+    description: Learned mono waveform declipping model.
     models:
       - sample_rate_hz: 48000
-        model_name: identity-stft-v0-48khz
-        model_version: 0.1.0
-        artifact_uri: gs://anthonymleedom-declip-v2-dev-models/identity-stft-v0/48000/identity-stft-v0-48khz-0.1.0.pt
-        runtime: pytorch
+        model_name: tgram-deftan2-v005-48khz
+        model_version: 20260605T224918Z
+        artifact_uri: gs://anthonymleedom-declip-v2-dev-models/declip-model-artifacts/declip_state_dict_v1/declip/tgram-deftan2-v005-48khz/20260605T224918Z/
+        runtime: pytorch_state_dict
         enabled: true

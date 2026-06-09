@@ -18,8 +18,8 @@ class ConcreteModelConfig(BaseModel):
     @field_validator("runtime")
     @classmethod
     def validate_runtime(cls, value: str) -> str:
-        if value != "pytorch":
-            raise ValueError("runtime must be pytorch")
+        if value not in {"pytorch", "pytorch_state_dict"}:
+            raise ValueError("runtime must be pytorch or pytorch_state_dict")
         return value
 
 

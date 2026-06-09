@@ -32,7 +32,7 @@ def test_process_job_writes_model_output_stage_and_enqueues_finalization() -> No
     }
     stored = app.state.job_repository.get_job("job_1")
     assert stored.model_output_gcs_uri == "gs://bucket/working/model-output.f32.wav"
-    assert stored.model_name == "identity-stft-v0-48khz"
+    assert stored.model_name == "tgram-deftan2-v005-48khz"
     assert stored.processing_codec == "pcm_f32le"
     assert [task.job_id for task in app.state.finalization_queue.payloads] == ["job_1"]
     assert app.state.conversion_queue.payloads == []
@@ -239,7 +239,7 @@ def _job(
         id="job_1",
         user_id="user_1",
         status=status,
-        model_family="identity-stft-v0",
+        model_family="declip",
         input_gcs_uri=None,
         input_duration_seconds=10.1,
         input_sample_rate_hz=sample_rate,
