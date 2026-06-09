@@ -334,8 +334,11 @@ Shared Terraform in the public backend provisions:
 - Task-enqueue and task-service-account attachment permissions for inference.
 - Conditional Cloud Run invoker bindings.
 
-This repository deploys its own private Cloud Run service image; backend
-Terraform does not deploy external service code.
+This repository builds and pushes the inference container image. Backend
+Terraform owns the Cloud Run service shape, runtime environment, IAM, scaling,
+and traffic configuration. Terraform only detects image changes when the
+configured image reference changes, so deploys should use a unique tag or image
+digest instead of repeatedly pushing to the same mutable tag.
 
 ## Environment Variables
 

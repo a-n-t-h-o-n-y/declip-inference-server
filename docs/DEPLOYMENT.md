@@ -84,24 +84,45 @@ Cloud Run service URL.
 
 ## Build And Deploy
 
-For dev, prefer the deploy script:
+For dev, build and push the inference image from this repository:
 
 ```bash
 cp scripts/deploy-cloud-run-dev.env.example .env.deploy.dev
 ./scripts/deploy-cloud-run-dev.sh
 ```
 
-The script builds and pushes the image, deploys private Cloud Run, and prints
-the service URL. It loads `.env.deploy.dev` when present and sets all runtime
-environment variables in the deploy call. The env template contains the dev
-Terraform output values and deployed conversion service URL; keep the copied
-file untracked.
-If `INFERENCE_SERVICE_AUDIENCE` is not supplied, it reuses the existing Cloud
-Run service URL. For a first deploy where no service URL exists yet, set
-`INFERENCE_SERVICE_AUDIENCE` explicitly. Cloud Run invoker IAM should already
-be managed by Terraform.
+The script builds and pushes only the container image. Terraform in
+`declip-backend-server` owns the Cloud Run service shape: GPU, CPU, memory,
+runtime environment variables, service account, scaling, IAM, and traffic
+configuration.
 
-The manual commands below are equivalent and useful when debugging deployment
+After the image is pushed, deploy the Cloud Run service through Terraform:
+
+```bash
+terraform -chdir=infra/terraform/envs/dev apply
+```
+
+Terraform only compares the configured image reference string. If
+`inference_cloud_run_image` is already set to
+`us-central1-docker.pkg.dev/declip-v2-dev/declip-dev/declip-inference-dev:dev`,
+pushing a new image to the same mutable `:dev` tag will not produce a Terraform
+plan diff. Cloud Run also keeps running the previously resolved image digest
+until a new revision is deployed.
+
+For deploys that Terraform can detect, use an immutable image reference. Set
+`IMAGE_TAG` to a unique value, such as the current Git SHA, before running the
+build script:
+
+```bash
+IMAGE_TAG="$(git rev-parse --short HEAD)" ./scripts/deploy-cloud-run-dev.sh
+```
+
+Then update `inference_cloud_run_image` in
+`declip-backend-server/infra/terraform/envs/dev/terraform.tfvars` to that new
+tag, or preferably to the pushed image digest, and run Terraform apply. The
+changed reference causes Terraform to create a new Cloud Run revision.
+
+The manual commands below are equivalent for debugging image build and push
 settings.
 
 Example variables:
@@ -109,70 +130,33 @@ Example variables:
 ```bash
 export PROJECT_ID="declip-dev"
 export REGION="us-central1"
-export SERVICE_NAME="declip-inference-server"
-export IMAGE_REPO="us-central1-docker.pkg.dev/${PROJECT_ID}/declip"
-export IMAGE="${IMAGE_REPO}/${SERVICE_NAME}:$(git rev-parse --short HEAD)"
-export INFERENCE_SERVICE_ACCOUNT="declip-inference@${PROJECT_ID}.iam.gserviceaccount.com"
-export CLOUD_TASKS_SERVICE_ACCOUNT="declip-tasks@${PROJECT_ID}.iam.gserviceaccount.com"
-export PUBLIC_API_SERVICE_ACCOUNT="declip-api@${PROJECT_ID}.iam.gserviceaccount.com"
-export AUDIO_BUCKET_NAME="declip-audio-dev"
-export CLOUD_TASKS_CONVERSION_QUEUE="declip-audio-conversion-dev"
-export CLOUD_TASKS_LOCATION="${REGION}"
-export CONVERSION_SERVICE_URL="<conversion-service-url>"
-export CONVERSION_SERVICE_AUDIENCE="${CONVERSION_SERVICE_URL}"
-export INFERENCE_SERVICE_AUDIENCE="<caller-oidc-audience>"
+export REPOSITORY="declip-dev"
+export SERVICE="declip-inference-dev"
+export IMAGE_TAG="$(git rev-parse --short HEAD)"
+export IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE}:${IMAGE_TAG}"
 ```
 
 Build and push:
 
 ```bash
+gcloud config set project "${PROJECT_ID}"
+gcloud services enable cloudbuild.googleapis.com artifactregistry.googleapis.com
+
+gcloud artifacts repositories describe "${REPOSITORY}" \
+  --project "${PROJECT_ID}" \
+  --location "${REGION}" \
+  || gcloud artifacts repositories create "${REPOSITORY}" \
+    --project "${PROJECT_ID}" \
+    --repository-format docker \
+    --location "${REGION}" \
+    --description "Declip container images"
+
+GAR_ACCESS_TOKEN="$(gcloud auth print-access-token)"
 gcloud builds submit \
   --project="${PROJECT_ID}" \
-  --tag="${IMAGE}"
-```
-
-Deploy as a private Cloud Run service:
-
-```bash
-gcloud run deploy "${SERVICE_NAME}" \
-  --project="${PROJECT_ID}" \
-  --region="${REGION}" \
-  --image="${IMAGE}" \
-  --service-account="${INFERENCE_SERVICE_ACCOUNT}" \
-  --no-allow-unauthenticated \
-  --cpu=2 \
-  --memory=4Gi \
-  --timeout=3600 \
-  --concurrency=1 \
-  --set-env-vars="APP_ENV=dev,APP_RUNTIME_MODE=cloud,APP_NAME=declip-inference-server,APP_VERSION=0.1.0,LOG_LEVEL=INFO,GCP_PROJECT_ID=${PROJECT_ID},FIRESTORE_DATABASE=(default),GCS_BUCKET_NAME=${AUDIO_BUCKET_NAME},CLOUD_TASKS_CONVERSION_QUEUE=${CLOUD_TASKS_CONVERSION_QUEUE},CLOUD_TASKS_LOCATION=${CLOUD_TASKS_LOCATION},CLOUD_TASKS_SERVICE_ACCOUNT=${CLOUD_TASKS_SERVICE_ACCOUNT},CONVERSION_SERVICE_URL=${CONVERSION_SERVICE_URL},CONVERSION_SERVICE_AUDIENCE=${CONVERSION_SERVICE_AUDIENCE},INFERENCE_SERVICE_AUDIENCE=${INFERENCE_SERVICE_AUDIENCE},ALLOWED_INTERNAL_CALLER_SERVICE_ACCOUNTS=[\"${PUBLIC_API_SERVICE_ACCOUNT}\"],MODEL_CONFIG_PATH=config/models.yaml,APP_CONFIG_PATH=config/app.yaml,MODEL_ARTIFACT_CACHE_DIR=/tmp/declip-models,INFERENCE_DEVICE=cpu,INFERENCE_BACKEND=identity_stft,MAX_DECODED_DURATION_SECONDS=1200"
-```
-
-After deploy, get the actual service URL for callers and smoke tests:
-
-```bash
-export INFERENCE_SERVICE_URL="$(
-  gcloud run services describe "${SERVICE_NAME}" \
-    --project="${PROJECT_ID}" \
-    --region="${REGION}" \
-    --format='value(status.url)'
-)"
-```
-
-If Terraform does not manage invoke permissions yet, the equivalent manual
-commands are:
-
-```bash
-gcloud run services add-iam-policy-binding "${SERVICE_NAME}" \
-  --project="${PROJECT_ID}" \
-  --region="${REGION}" \
-  --member="serviceAccount:${CLOUD_TASKS_SERVICE_ACCOUNT}" \
-  --role="roles/run.invoker"
-
-gcloud run services add-iam-policy-binding "${SERVICE_NAME}" \
-  --project="${PROJECT_ID}" \
-  --region="${REGION}" \
-  --member="serviceAccount:${PUBLIC_API_SERVICE_ACCOUNT}" \
-  --role="roles/run.invoker"
+  --config cloudbuild.yaml \
+  --substitutions "_IMAGE=${IMAGE},_GAR_ACCESS_TOKEN=${GAR_ACCESS_TOKEN}" \
+  .
 ```
 
 Configure the public API with:
